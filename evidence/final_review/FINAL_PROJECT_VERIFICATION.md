@@ -81,15 +81,41 @@ Executed on the live progressive delivery engine (`http://localhost:5005`):
 
 ## 6. Faulty Deployment & Automated Rollback Experiment
 
-*Status:* **Awaiting User Approval** to trigger final live fault-injection run.
-- **Pre-Inspection of Mechanism:**
-  - `backend/src/routes/demo.routes.js`: Controlled failure injection (`elevatedErrorRate`, `injectedLatencyMs`, `unhealthyReadiness`) is restricted to non-production mode.
-  - `backend/src/routes/deployment.routes.js`: `POST /api/deploy/faulty` initiates candidate `v3.0` (or `v5.0` via config). During canary evaluation, error rate breaches the 5% threshold, tripping the circuit breaker, returning HTTP 503 on `/health`, and restoring the previous stable release (`v2.0`).
-- **Verified via Automated E2E Suite:** Scenario 9 in `test_e2e.js` executed and passed:
-  - Candidate `v5.0` deployed with 18% error rate.
-  - Health check failed (`HTTP 503`).
-  - Automated circuit breaker restored stable version `v4.1` with `status: "ROLLED BACK"`.
-  - Application health restored to `HEALTHY` (`HTTP 200`).
+*Status:* **PASS** (Executed with User Approval on Live Server)
+
+1. **Trigger:** `POST /api/deploy/faulty` initiated candidate `v3.0`.
+   - Response: `{"status":"initiated","candidate":"v3.0","message":"Deployment pipeline initiated for faulty candidate v3.0"}`
+2. **Canary Step 1 (T+1.5s):**
+   - Active traffic: `90%`, Canary traffic: `10%`.
+   - `deployment_status: "DEPLOYING"`, `candidate_version: "v3.0"`.
+3. **Canary Step 2 (T+3.5s):**
+   - Active traffic: `50%`, Canary traffic: `50%`.
+   - Synthetic health probes evaluate candidate error rate (18% > 5% threshold).
+4. **Probe Failure & Circuit Breaker Trip (T+4.5s):**
+   - Health probe returns **`HTTP/1.1 503 Service Unavailable`**:
+     ```json
+     {"status":"UNHEALTHY","active_version":"v1.0","timestamp":"2026-11-01T16:12:39.596Z"}
+     ```
+   - Dashboard turns RED, circuit breaker interrupts deployment.
+5. **Automated Rollback Final State (T+7.0s):**
+   - Stable version restored: `active_version: "v1.0"`.
+   - Candidate purged: `candidate_version: "NONE"`.
+   - Status updated: `deployment_status: "ROLLED BACK"`.
+   - Traffic restored: `traffic_split: {"active": 100, "candidate": 0}`.
+   - Rollback metadata recorded:
+     ```json
+     {
+       "failed_version": "v3.0",
+       "restored_version": "v1.0",
+       "timestamp": "21:42:41",
+       "reason": "Simulated probe failure: Error rate 18% exceeded 5% threshold on v3.0."
+     }
+     ```
+6. **Post-Rollback Health Probe (T+7.5s):**
+   - Health probe returns **`HTTP/1.1 200 OK`**:
+     ```json
+     {"status":"HEALTHY","active_version":"v1.0","timestamp":"2026-11-01T16:12:42.140Z"}
+     ```
 
 ---
 
@@ -153,9 +179,9 @@ Every visual component on `http://localhost:5005` was verified against live JSON
 | Kubernetes Manifests | **PASS** | Verified via `kubectl kustomize k8s/` |
 | Local Simulation Engine | **PASS** | End-to-end healthy promotion & circuit breaker rollback verified |
 | Controlled Research Study | **PASS** | Empirical paper & raw data verified (90% blast radius reduction) |
+| Live Fault-Injection & Rollback | **PASS** | Live curl trace captured (HTTP 503 trip & v1.0 restoration) |
 | Docker Daemon on Host | **BLOCKED** | Docker Desktop stopped on host machine |
 | Live Kubernetes Cluster Pods | **BLOCKED** | Requires running Docker daemon to start Kind control plane |
-| Live Fault-Injection Run | **PENDING** | Awaiting user approval to trigger live test |
 
 ---
 
