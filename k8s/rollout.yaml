@@ -55,6 +55,11 @@ spec:
         - name: app
           image: cloud05-capstone:v3.0
           imagePullPolicy: IfNotPresent
+          env:
+            - name: RELEASE_VERSION
+              value: "v3.0"
+            - name: FAULT_MODE
+              value: "true"
           ports:
             - name: http
               containerPort: 5005
