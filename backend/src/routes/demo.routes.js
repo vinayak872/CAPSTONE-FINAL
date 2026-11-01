@@ -12,9 +12,9 @@ const sampleProducts = [
   { id: 'prod-004', name: 'GitOps Synchronization Engine', tier: 'enterprise', active: true }
 ];
 
-// Controlled failure state (ONLY active if injected in non-production test mode)
+// Controlled failure state (active via API or container environment for faulty releases)
 const failureModes = {
-  elevatedErrorRate: false,
+  elevatedErrorRate: process.env.FAULT_MODE === 'true' || process.env.RELEASE_VERSION === 'v3.0',
   injectedLatencyMs: 0,
   unhealthyReadiness: false
 };

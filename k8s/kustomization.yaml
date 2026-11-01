@@ -10,8 +10,3 @@ resources:
   - services.yaml
   - analysis-template.yaml
   - rollout.yaml
-
-images:
-  - name: cloud05-capstone
-    newName: cloud05-capstone
-    newTag: v1.0

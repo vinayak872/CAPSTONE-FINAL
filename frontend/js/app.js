@@ -27,6 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnDemoOrder = document.getElementById('btn-demo-order');
     if (btnDemoOrder) btnDemoOrder.addEventListener('click', placeDemoOrder);
+
+    // Bind GitOps Force Sync Button
+    const btnGitopsSync = document.getElementById('btn-gitops-sync');
+    if (btnGitopsSync) btnGitopsSync.addEventListener('click', triggerGitopsSync);
 });
 
 async function fetchStatus() {
@@ -181,6 +185,9 @@ function updateDashboardUI(data) {
             cfgResultEl.className = 'result-badge result-none font-mono';
         }
     }
+
+    // Update Live GitOps & Cluster Progressive Delivery Monitor
+    updateGitopsUI(data);
 }
 
 function updateConnectivityPills(data) {
@@ -229,6 +236,133 @@ function updateConnectivityPills(data) {
         const promOnline = data.cluster_connectivity.prometheus !== false;
         pillProm.textContent = promOnline ? 'Prometheus: Active' : 'Prometheus: Offline';
         pillProm.className = promOnline ? 'pill-active-tag' : 'pill-offline-tag';
+    }
+}
+
+function updateGitopsUI(data) {
+    const conn = data.cluster_connectivity;
+    if (!conn) return;
+
+    // 1. Argo CD Live Telemetry
+    const app = conn.argocd_app;
+    const badgeArgo = document.getElementById('badge-argocd-sync');
+    const gitopsRepoLink = document.getElementById('gitops-repo-link');
+    const gitopsBranch = document.getElementById('gitops-branch');
+    const gitopsCommitSha = document.getElementById('gitops-commit-sha');
+    const gitopsCommitLink = document.getElementById('gitops-commit-link');
+    const gitopsSyncBadge = document.getElementById('gitops-sync-status-badge');
+    const gitopsReconciled = document.getElementById('gitops-reconciled-time');
+
+    if (app) {
+        if (badgeArgo) {
+            badgeArgo.textContent = `Argo CD: ${app.sync_status}`;
+            badgeArgo.className = `badge ${app.sync_status === 'Synced' ? 'badge-success' : 'badge-warning'} font-mono`;
+        }
+        if (gitopsBranch) gitopsBranch.textContent = app.target_revision || 'main';
+        if (gitopsCommitSha) gitopsCommitSha.textContent = app.short_revision || '--';
+        if (gitopsCommitLink && app.revision && app.revision !== 'unknown') {
+            gitopsCommitLink.href = `https://github.com/vinayak872/CAPSTONE-FINAL/commit/${app.revision}`;
+        }
+        if (gitopsSyncBadge) {
+            gitopsSyncBadge.textContent = app.sync_status.toUpperCase();
+            gitopsSyncBadge.className = `badge ${app.sync_status === 'Synced' ? 'badge-success' : 'badge-warning'} font-mono`;
+        }
+        if (gitopsReconciled && app.reconciled_at) {
+            const dt = new Date(app.reconciled_at);
+            gitopsReconciled.textContent = dt.toLocaleTimeString();
+        }
+    }
+
+    // 2. Argo Rollout Live Telemetry
+    const ro = conn.cluster_rollout;
+    const badgeRo = document.getElementById('badge-rollout-phase');
+    const liveRoPhase = document.getElementById('live-rollout-phase');
+    const liveRoStep = document.getElementById('live-rollout-step');
+    const liveRoPods = document.getElementById('live-rollout-pods');
+    const liveRoImage = document.getElementById('live-rollout-image');
+    const liveAbortBanner = document.getElementById('live-cluster-abort-banner');
+    const liveAbortDesc = document.getElementById('live-abort-desc');
+
+    if (ro) {
+        if (badgeRo) {
+            badgeRo.textContent = `Rollout: ${ro.phase}`;
+            badgeRo.className = `badge ${ro.phase === 'Healthy' ? 'badge-success' : (ro.phase === 'Degraded' ? 'badge-danger' : 'badge-warning')} font-mono`;
+        }
+        if (liveRoPhase) {
+            liveRoPhase.textContent = ro.phase.toUpperCase();
+            liveRoPhase.className = `badge ${ro.phase === 'Healthy' ? 'badge-success' : (ro.phase === 'Degraded' ? 'badge-danger' : 'badge-warning')} font-mono`;
+        }
+        if (liveRoStep) {
+            if (ro.phase === 'Progressing' || ro.phase === 'Paused') {
+                liveRoStep.textContent = `Step ${ro.current_step} (${ro.current_weight}% Canary Weight)`;
+                liveRoStep.style.color = '#F59E0B';
+            } else if (ro.phase === 'Degraded' || ro.aborted) {
+                liveRoStep.textContent = `Rollout Aborted (Automated Circuit Breaker)`;
+                liveRoStep.style.color = '#EF4444';
+            } else {
+                liveRoStep.textContent = `Step ${ro.current_step} (100% Stable)`;
+                liveRoStep.style.color = '#10B981';
+            }
+        }
+        if (liveRoPods) {
+            liveRoPods.textContent = `${ro.ready_replicas} Ready / ${ro.replicas} Total (${ro.updated_replicas || 0} Canary)`;
+        }
+        if (liveRoImage) {
+            liveRoImage.textContent = ro.images;
+        }
+
+        // Abort & Rollback Banner
+        if (liveAbortBanner) {
+            if (ro.aborted || ro.phase === 'Degraded') {
+                liveAbortBanner.classList.remove('hidden');
+                if (liveAbortDesc) {
+                    liveAbortDesc.textContent = ro.abort_reason || 'Candidate breached Prometheus error rate threshold (<= 5%). Rollout aborted by Argo Rollouts controller; traffic reverted safely to v1.0.';
+                }
+            } else {
+                liveAbortBanner.classList.add('hidden');
+            }
+        }
+    }
+
+    // 3. In-Cluster Prometheus AnalysisRun Details
+    const ar = conn.latest_analysis_run;
+    const analysisBadge = document.getElementById('live-analysis-badge');
+    const analysisMetrics = document.getElementById('live-analysis-metrics');
+
+    if (ar) {
+        if (analysisBadge) {
+            analysisBadge.textContent = ar.phase.toUpperCase();
+            analysisBadge.className = `badge ${ar.phase === 'Successful' ? 'badge-success' : (ar.phase === 'Failed' ? 'badge-danger' : 'badge-warning')} font-mono`;
+        }
+        if (analysisMetrics && ar.metrics && ar.metrics.length > 0) {
+            const summary = ar.metrics.map(m => `${m.name}: ${m.value}`).join(' | ');
+            analysisMetrics.textContent = summary;
+        }
+    }
+}
+
+async function triggerGitopsSync() {
+    const btn = document.getElementById('btn-gitops-sync');
+    const icon = document.getElementById('gitops-sync-icon');
+    if (btn) btn.disabled = true;
+    if (icon) icon.textContent = '⏳';
+    try {
+        const res = await fetch('/api/k8s/sync', { method: 'POST' });
+        const data = await res.json();
+        if (icon) icon.textContent = '✓';
+        setTimeout(() => {
+            if (icon) icon.textContent = '🔄';
+            if (btn) btn.disabled = false;
+        }, 1500);
+        fetchStatus();
+        fetchEvents();
+    } catch (err) {
+        console.error('Failed to trigger GitOps sync:', err);
+        if (icon) icon.textContent = '❌';
+        setTimeout(() => {
+            if (icon) icon.textContent = '🔄';
+            if (btn) btn.disabled = false;
+        }, 2000);
     }
 }
 

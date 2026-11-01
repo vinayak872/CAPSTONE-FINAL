@@ -935,3 +935,168 @@ body {
     font-size: 15px;
     color: #F8FAFC;
 }
+
+/* Live GitOps & Kubernetes Progressive Delivery Controller Section */
+.gitops-card {
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(30, 41, 59, 0.85));
+    border: 1px solid #3B82F6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+}
+
+.gitops-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
+}
+
+.gitops-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.live-pulse-badge {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #10B981;
+    box-shadow: 0 0 8px #10B981;
+    animation: livePulse 2s infinite;
+}
+
+@keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.gitops-cluster-pills {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-gitops-sync {
+    background: #1E40AF;
+    color: #FFF;
+    border: 1px solid #3B82F6;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-gitops-sync:hover {
+    background: #2563EB;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+    transform: translateY(-1px);
+}
+
+.gitops-body-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.gitops-panel {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.panel-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #93C5FD;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 6px;
+}
+
+.gitops-stat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gitops-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.gitops-stat-label {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.gitops-stat-value {
+    color: var(--text-primary);
+}
+
+.link-accent {
+    color: #60A5FA;
+    text-decoration: none;
+}
+
+.link-accent:hover {
+    text-decoration: underline;
+}
+
+.commit-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gitops-commit-badge {
+    background: #1E293B;
+    border: 1px solid #475569;
+    color: #F8FAFC;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 11px;
+}
+
+.gitops-commit-badge:hover {
+    border-color: #60A5FA;
+    color: #60A5FA;
+}
+
+.analysis-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cluster-abort-banner {
+    margin-top: 14px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #EF4444;
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #FCA5A5;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.cluster-abort-banner.hidden {
+    display: none;
+}

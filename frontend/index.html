@@ -101,6 +101,96 @@
             </div>
         </section>
 
+        <!-- Live GitOps & Kubernetes Progressive Delivery Controller -->
+        <section class="card gitops-card">
+            <div class="card-header gitops-header">
+                <div class="gitops-title-group">
+                    <span class="live-pulse-badge"></span>
+                    <h2>Live GitOps &amp; Cluster Progressive Delivery Controller</h2>
+                    <span class="badge badge-subtle font-mono">namespace: cloud05-app</span>
+                </div>
+                <div class="gitops-cluster-pills">
+                    <span id="badge-argocd-sync" class="badge badge-success font-mono">Argo CD: Synced</span>
+                    <span id="badge-rollout-phase" class="badge badge-info font-mono">Rollout: Healthy</span>
+                    <button id="btn-gitops-sync" class="btn btn-gitops-sync" title="Trigger immediate reconciliation from GitHub">
+                        <span id="gitops-sync-icon">🔄</span> Force GitOps Sync
+                    </button>
+                </div>
+            </div>
+
+            <div class="gitops-body-grid">
+                <!-- Left: Argo CD Live GitOps Stream -->
+                <div class="gitops-panel gitops-argocd-panel">
+                    <div class="panel-tag">
+                        <span class="tag-icon">🐙</span>
+                        <strong>Argo CD GitOps Synchronizer</strong>
+                    </div>
+                    <div class="gitops-stat-list">
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">TARGET REPOSITORY:</span>
+                            <a id="gitops-repo-link" href="https://github.com/vinayak872/CAPSTONE-FINAL" target="_blank" class="gitops-stat-value link-accent font-mono">vinayak872/CAPSTONE-FINAL.git &nearr;</a>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">TRACKED BRANCH:</span>
+                            <span id="gitops-branch" class="gitops-stat-value font-mono">main</span>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">SYNCED COMMIT:</span>
+                            <div class="commit-wrap">
+                                <a id="gitops-commit-link" href="#" target="_blank" class="gitops-commit-badge font-mono">
+                                    <span id="gitops-commit-sha">--</span> &nearr;
+                                </a>
+                                <span id="gitops-sync-status-badge" class="badge badge-success font-mono">SYNCED</span>
+                            </div>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">LAST RECONCILED:</span>
+                            <span id="gitops-reconciled-time" class="gitops-stat-value font-mono">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Argo Rollouts Progressive Delivery Visualizer -->
+                <div class="gitops-panel gitops-rollout-panel">
+                    <div class="panel-tag">
+                        <span class="tag-icon">🚀</span>
+                        <strong>Argo Rollouts Live Controller</strong>
+                    </div>
+                    <div class="gitops-stat-list">
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">CONTROLLER LIFECYCLE:</span>
+                            <span id="live-rollout-phase" class="badge badge-success font-mono">HEALTHY</span>
+                            <span id="live-rollout-step" class="font-mono text-muted">Step 9/9 (100% Stable)</span>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">POD REPLICAS:</span>
+                            <span id="live-rollout-pods" class="gitops-stat-value font-mono">4 Ready / 4 Total (0 Canary)</span>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">CONTAINER IMAGES:</span>
+                            <span id="live-rollout-image" class="gitops-stat-value font-mono highlight-green">cloud05-capstone:v1.0</span>
+                        </div>
+                        <div class="gitops-stat-row">
+                            <span class="gitops-stat-label">IN-CLUSTER PROMETHEUS ANALYSIS:</span>
+                            <div id="live-analysis-box" class="analysis-box">
+                                <span id="live-analysis-badge" class="badge badge-success font-mono">SUCCESSFUL</span>
+                                <span id="live-analysis-metrics" class="font-mono text-muted text-xs">Error: 0% (&le;5%) | Success: 100% (&ge;95%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- In-Cluster Abort & Automated Rollback Notification -->
+            <div id="live-cluster-abort-banner" class="cluster-abort-banner hidden">
+                <span class="abort-icon">⚠️</span>
+                <div class="abort-text">
+                    <strong id="live-abort-title">Argo Rollouts Detected Automated Rollback Event:</strong>
+                    <span id="live-abort-desc">Candidate failed Prometheus analysis thresholds. Traffic automatically reverted to stable v1.0.</span>
+                </div>
+            </div>
+        </section>
+
         <!-- Main Grid -->
         <main class="dashboard-grid">
             <!-- Left Column: Controls & Core Metrics -->
