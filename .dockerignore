@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+tests
+coverage
+venv
+.venv
+__pycache__
+*.pyc
+.DS_Store
+evidence

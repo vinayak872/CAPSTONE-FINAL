@@ -1,149 +1,181 @@
-# CL-05 Capstone: GitOps-Based Progressive Delivery and Automatic Rollback
+# CLOUD-05: GitOps-Based Progressive Delivery with Automated Health Gating and Rollback
 
-A lightweight, robust, and verified demonstration of GitOps progressive delivery (canary rollout) with automated health probes and circuit-breaker automatic rollback. Built specifically for final-year college project evaluations and live technical demonstrations.
+**Final-Year CSE Capstone Project**  
+**Technology Stack:** Node.js, Express.js, Prometheus, Docker, Kubernetes, Argo CD, Argo Rollouts, HTML5/CSS/JavaScript  
+**Runtime Endpoint:** `http://localhost:5005`  
+**Telemetry Endpoint:** `http://localhost:5005/metrics`  
 
 ---
 
 ## 1. Project Overview & Architecture
-This application simulates a cloud-native progressive delivery pipeline without requiring external heavy infrastructure (Kubernetes clusters, Argo CD controllers, or Prometheus servers):
 
-- **Backend**: Python 3 + Flask with thread-safe in-memory state controller (`backend/app.py`).
-- **Configuration Engine**: Real disk file (`backend/release_config.json`) evaluated at runtime with strict schema validation.
-- **Frontend**: DevOps monitoring dashboard in dark mode (HTML5, Vanilla CSS, Vanilla JavaScript).
-- **Telemetry**: Real-time 1-second polling of `/api/status`, `/api/config`, and `/api/events`.
-- **Infrastructure Mode**: Local In-Memory Controller (Clearly labeled; does not claim external Kubernetes/Argo CD/Istio).
+Traditional Continuous Integration and Continuous Delivery (CI/CD) pipelines frequently deploy software candidates directly into production. When a release contains subtle, semantic, or latent defects, conventional deployment patterns expose 100% of users to disruption before problems are detected.
+
+**CLOUD-05** implements an end-to-end cloud-native GitOps architecture that eliminates this vulnerability using:
+1. **Git as Single Source of Truth:** Desired infrastructure and application versions are managed declaratively in Git.
+2. **GitOps Reconciliation:** Argo CD synchronizes desired states directly into Kubernetes.
+3. **Progressive Delivery (Canary Deployments):** Argo Rollouts gradually increases candidate traffic exposure (10% &rarr; 25% &rarr; 50% &rarr; 100%).
+4. **Automated Health Analysis:** Real-time Prometheus metrics (`cloud05_http_requests_total`, error rates, latencies) continuously evaluate candidate health.
+5. **Circuit-Breaker Automatic Rollback:** If metrics breach predefined safety thresholds, the rollout aborts immediately and restores 100% traffic to the previously healthy release.
+
+### Architecture Diagram
+
+```mermaid
+graph TD
+    Dev[Developer Code Change] --> Git[Git Repository / Desired State]
+    Git --> CI[CI Pipeline: Lint, Test, Security Audit]
+    CI --> Docker[Multi-Stage Docker Image]
+    Docker --> Registry[Container Registry]
+    Registry --> GitOps[GitOps Manifest Update]
+    GitOps --> ArgoCD[Argo CD Controller]
+    ArgoCD --> K8s[Kubernetes Cluster]
+    K8s --> Rollout[Argo Rollouts Controller]
+    
+    Rollout -->|10% Traffic| Canary[Canary Candidate Pods]
+    Rollout -->|90% Traffic| Stable[Active Stable Pods]
+    
+    Canary --> Prom[Prometheus Telemetry Scraper]
+    Prom --> Analysis[AnalysisTemplate Health Analysis]
+    
+    Analysis -->|Pass: Error Rate <= 5%| Promote[Promote Candidate to Active]
+    Analysis -->|Fail: Error Rate > 5%| Rollback[Circuit Breaker: Automatic Rollback to Stable]
+    
+    Promote --> Dashboard[DevOps Monitoring Dashboard]
+    Rollback --> Dashboard
+```
 
 ---
 
 ## 2. Directory Structure
+
 ```
-cloud05-minimal-demo/
-│
-├── frontend/
-│   ├── index.html              # DevOps monitoring dashboard layout
-│   ├── css/
-│   │   └── style.css           # Dark theme, metrics cards, badges, and animations
-│   └── js/
-│       └── app.js              # Real-time polling engine, dynamic updates & UI triggers
-│
+cloud05-capstone/
 ├── backend/
-│   ├── app.py                  # Flask server, state machine & rollback worker logic
-│   ├── release_config.json     # Live configuration file read and evaluated by the pipeline
-│   ├── requirements.txt        # Backend dependencies (Flask)
-│   └── test_e2e.py             # Automated end-to-end testing suite
-│
-├── test_e2e.py                 # One-command root automated test runner
-├── README.md                   # Complete documentation & demonstration instructions
-└── REVIEW_GUIDE.md             # In-depth architectural guide, code walkthrough & viva Q&A
+│   ├── src/
+│   │   ├── app.js                   # Express application setup, routes & middleware
+│   │   ├── server.js                # Server entrypoint listening on port 5005
+│   │   ├── config/
+│   │   │   └── environment.js       # Centralized typed configuration & paths
+│   │   ├── middleware/
+│   │   │   ├── error-handler.js     # Graceful error handler (no secret leakage)
+│   │   │   └── metrics.middleware.js # Prometheus HTTP duration & counter collector
+│   │   ├── routes/
+│   │   │   ├── health.routes.js     # /health, /ready, /version
+│   │   │   ├── status.routes.js     # /api/status telemetry state
+│   │   │   ├── config.routes.js     # /api/config disk file state
+│   │   │   ├── events.routes.js     # /api/events chronological audit stream
+│   │   │   ├── deployment.routes.js # /api/deploy/* triggers & reset
+│   │   │   ├── metrics.routes.js    # /metrics Prometheus endpoint
+│   │   │   └── demo.routes.js       # /api/demo/* realistic business operations
+│   │   ├── services/
+│   │   │   ├── state.service.js     # Thread-safe in-memory progressive state machine
+│   │   │   ├── rollout.service.js   # Canary lifecycle & circuit-breaker rollback engine
+│   │   │   ├── config.service.js    # Strict JSON schema validator for release_config.json
+│   │   │   ├── event.service.js     # Chronological audit stream ring buffer
+│   │   │   ├── metrics.service.js   # prom-client Prometheus metrics definitions
+│   │   │   └── k8s.service.js       # Cluster & Argo Rollouts connectivity detector
+│   │   └── utils/
+│   │       └── logger.js            # Structured JSON logger
+│   ├── tests/
+│   │   ├── health.test.js           # Tests for /health, /ready, /version, /metrics
+│   │   ├── config.test.js           # Tests for schema validation & active preservation
+│   │   ├── rollout.test.js          # Tests for promotion, rollback & boundary cases
+│   │   └── demo.test.js             # Tests for demo business operations
+│   ├── Dockerfile                   # Multi-stage non-root container configuration
+│   ├── release_config.json          # Live evaluated release configuration file
+│   └── package.json                 # Node.js backend dependencies & scripts
+├── frontend/
+│   ├── index.html                   # Cloud-native DevOps monitoring dashboard
+│   ├── css/
+│   │   └── style.css                # Dark theme, badges, traffic bars, pipeline tracker
+│   └── js/
+│       └── app.js                   # Reactive polling engine (1s interval) & event rendering
+├── k8s/
+│   ├── namespace.yaml               # cloud05-app namespace
+│   ├── configmap.yaml               # Application environment configuration
+│   ├── secrets.yaml                 # Sensitive secret references
+│   ├── services.yaml                # Active and Preview Kubernetes services
+│   ├── analysis-template.yaml       # Argo Rollouts Prometheus health analysis queries
+│   ├── rollout.yaml                 # Argo Rollouts progressive canary CRD
+│   ├── argocd-application.yaml      # Argo CD GitOps Application manifest
+│   └── kustomization.yaml           # Kustomize manifest bundle
+├── monitoring/
+│   ├── prometheus.yml               # Prometheus scraper configuration
+│   └── grafana-dashboard.json       # Grafana telemetry dashboard definition
+├── experiments/
+│   └── run_experiments.js          # Controlled academic benchmark runner
+├── evidence/
+│   ├── phase1/                      # Baseline audit reports
+│   └── final_review/                # Research paper, raw data & verification matrix
+├── .github/workflows/
+│   └── ci-cd.yml                    # Automated GitHub Actions pipeline
+├── test_e2e.js                      # Root one-command JavaScript E2E test suite
+├── package.json                     # Root project package definition
+└── README.md                        # Documentation
 ```
 
 ---
 
-## 3. Configuration Schema (`backend/release_config.json`)
-
-The progressive delivery engine strictly validates `backend/release_config.json` before any candidate release is created.
-
-### Schema Definition
-```json
-{
-  "version": "v4.0",
-  "message": "Healthy release",
-  "error_rate": 0,
-  "threshold": 5
-}
-```
-
-### Validation Rules
-| Field | Type | Constraint | Behavior on Violation |
-| :--- | :--- | :--- | :--- |
-| `version` | `string` | Required, non-empty | HTTP 400 rejection; active release preserved |
-| `message` | `string` | Required, non-empty | HTTP 400 rejection; active release preserved |
-| `error_rate` | `number` | Required, numeric, `0 <= error_rate <= 100` | HTTP 400 rejection; active release preserved |
-| `threshold` | `number` | Required, numeric, `0 <= threshold <= 100` | HTTP 400 rejection; active release preserved |
-| Syntax | JSON | Valid JSON syntax | HTTP 400 rejection; active release preserved |
-
-*Note: Invalid configurations are strictly blocked and will never alter the active release.*
-
----
-
-## 4. How to Run Locally
+## 3. How to Run Locally
 
 ### Prerequisites
-- Python 3.9+
+- Node.js (v18.0.0 or higher)
+- npm (v9.0.0 or higher)
 - A modern web browser
 
 ### Start the Application
-From the `cloud05-minimal-demo` directory:
+From the project root:
 ```bash
-# 1. Activate existing virtual environment
-source backend/venv/bin/activate
-# Or if using root venv:
-# source venv/bin/activate
+# 1. Install dependencies
+npm --prefix backend install
 
-# 2. Run Flask server
-python3 backend/app.py
+# 2. Start Node.js backend
+npm start
 ```
-
-The application runs at:
-**`http://localhost:5005`**
+The server starts at: **`http://localhost:5005`**  
+Open your browser to view the interactive DevOps dashboard!
 
 ---
 
-## 5. One-Command Automated End-to-End Tests
+## 4. Running Automated Tests
 
-To run the complete automated test suite verifying all healthy, faulty, boundary, and invalid validation cases:
-
+### Unit & Integration Test Suite (Vitest & Supertest)
 ```bash
-python3 test_e2e.py
+npm test
 ```
-*(Or alternatively: `python3 backend/test_e2e.py`)*
+*Executes all 24 automated unit and integration tests across health, configuration validation, canary promotion, circuit breaker rollback, and business operations.*
 
-### Test Cases Covered & Verified
-| Test | Configuration | Evaluation Criteria | Expected Result |
-| :--- | :--- | :--- | :--- |
-| **Healthy Release** | `error_rate: 0%`, `threshold: 5%` | `0 <= 5` | Promoted to Active |
-| **Healthy Boundary** | `error_rate: 5%`, `threshold: 5%` | `5 <= 5` | Promoted to Active |
-| **Faulty Boundary** | `error_rate: 6%`, `threshold: 5%` | `6 > 5` | Auto-Rollback to previous stable |
-| **Faulty Release** | `error_rate: 18%`, `threshold: 5%` | `18 > 5` | Auto-Rollback to previous stable |
-| **Missing Field** | Missing `error_rate` | Schema check | HTTP 400 Rejected (Active preserved) |
-| **Negative Rate** | `error_rate: -5%` | Range check | HTTP 400 Rejected (Active preserved) |
-| **Out-of-Bounds** | `error_rate: 120%` | Range check | HTTP 400 Rejected (Active preserved) |
-| **Malformed JSON** | Invalid syntax | JSON Parser | HTTP 400 Rejected (Active preserved) |
-
-The script prints color-coded `[PASS]` / `[FAIL]` indicators and exits with code `0` on success or non-zero on failure.
+### One-Command End-to-End Test Suite (Live Server)
+```bash
+node test_e2e.js
+```
+*Validates all 12 end-to-end scenarios against a running server with color-coded PASS/FAIL reporting.*
 
 ---
 
-## 6. Live Demonstration Guide for Reviewers
+## 5. Live Demonstration Guide for Reviewers
 
-### Scenario 1: Healthy Deployment (Promotion Demonstration)
-Demonstrates safe canary analysis and automated promotion:
-1. Open `backend/release_config.json` in your editor.
-2. Set the configuration:
+### Scenario 1: Healthy Release Promotion Demonstration
+1. Open `backend/release_config.json` and set:
    ```json
    {
      "version": "v4.0",
-     "message": "Healthy release",
+     "message": "Healthy release test",
      "error_rate": 0,
      "threshold": 5
    }
    ```
-3. Save the file.
-4. Open the dashboard at `http://localhost:5005`. Notice the **Live Configuration Deployment** card immediately syncs and displays `v4.0`, `0%` error rate, `5%` threshold, and projected outcome `PASS (Promote)`.
-5. Click **Deploy Current Configuration**.
-6. Observe the progressive deployment process:
-   - Configuration is validated.
-   - Candidate release `v4.0` is created.
-   - Canary traffic routes 10%, ramping to 50%.
-   - Simulated health probes pass (`error_rate 0% <= threshold 5%`).
-   - Candidate is promoted to Active Release (`v4.0`).
-   - Deployment status becomes `STABLE`, health is `HEALTHY`, candidate becomes `NONE`.
-   - Previous release `v1.0` is retained as rollback version.
+2. Open the dashboard at `http://localhost:5005`.
+3. Notice the card displays `Projected Outcome: PASS (Promote)`.
+4. Click **Deploy Current Configuration** (or **Deploy Healthy Release**).
+5. Watch the progressive lifecycle:
+   - Pipeline visualizer lights up Step 5 (`10% Canary`).
+   - Ramps to Step 6 (`50% Canary`) while Prometheus probes evaluate health (`0% <= 5%`).
+   - Candidate `v4.0` is promoted to **Active Release**.
+   - Traffic returns to 100% active; previous stable `v1.0` is preserved for rollbacks.
 
-### Scenario 2: Faulty Deployment (Circuit-Breaker Auto-Rollback Demonstration)
-Demonstrates simulated anomaly detection and automated rollback:
-1. Open `backend/release_config.json` in your editor.
-2. Set the configuration:
+### Scenario 2: Faulty Release & Automatic Rollback Demonstration
+1. Open `backend/release_config.json` and set:
    ```json
    {
      "version": "v5.0",
@@ -152,53 +184,40 @@ Demonstrates simulated anomaly detection and automated rollback:
      "threshold": 5
    }
    ```
-3. Save the file.
-4. On the dashboard, observe the card immediately updates to `v5.0`, `18%`, `5%`, and projected outcome `FAIL (Rollback)`.
-5. Click **Deploy Current Configuration**.
-6. Observe the automatic rollback lifecycle:
-   - Candidate release `v5.0` is created.
-   - Canary traffic routes 10%, ramping to 50%.
-   - Simulated probes fail because configured error rate (18%) exceeds threshold (5%).
-   - Circuit breaker trips: health probe returns HTTP 503 (`UNHEALTHY`).
-   - Automated rollback triggers: candidate `v5.0` is discarded.
+2. On the dashboard, notice `Projected Outcome: FAIL (Rollback)`.
+3. Click **Deploy Current Configuration** (or **Deploy Faulty Release**).
+4. Watch the automatic rollback lifecycle:
+   - Canary initiates at 10%, ramping to 50%.
+   - Health analysis detects violation: error rate (18%) exceeds threshold (5%).
+   - Circuit breaker trips: `/health` returns **HTTP 503**, dashboard turns RED.
+   - **Automated Rollback triggers immediately**: candidate `v5.0` is discarded.
    - Previous stable release (`v4.0`) is restored to 100% active traffic.
-   - Deployment status transitions to `ROLLED BACK`.
-   - Red **Automated Rollback Event Detected** alert card appears with timestamp and trigger reason.
-   - Candidate returns to `NONE`, application health returns to `HEALTHY`.
+   - Red **Automated Rollback Event Detected** alert card appears with timestamp and failure reason.
+   - Application health returns to **HEALTHY** (HTTP 200).
 
-### Scenario 3: Invalid Configuration Rejection Demonstration
-Demonstrates schema protection:
-1. Set `error_rate` to `-10` or remove the `version` field in `backend/release_config.json`.
-2. Notice the dashboard badge changes to `Invalid Config`.
+### Scenario 3: Invalid Configuration Rejection
+1. Set `error_rate: -10` or remove the `version` field in `backend/release_config.json`.
+2. Notice the badge shows `Invalid Config`.
 3. Click **Deploy Current Configuration**.
-4. Result: The deployment is immediately rejected (HTTP 400). A danger alert appears, a danger event is logged in the live audit stream, and the active version remains completely untouched.
+4. The deployment is rejected with **HTTP 400**. The active version remains 100% untouched.
 
 ---
 
-## 7. Real vs. Simulated Concepts
+## 6. API Reference
 
-- **Real Implemented Components**:
-  - Python Flask REST API (`/health`, `/api/status`, `/api/config`, `/api/events`, `/api/deploy/*`, `/api/reset`).
-  - Strict JSON schema validation and error handling on live disk file.
-  - Thread-safe in-memory progressive delivery state machine.
-  - Automatic circuit-breaker rollback restoring previous stable version.
-  - Real-time client-side polling and reactive UI rendering.
-- **Simulated Concepts**:
-  - Synthetic health probes and error rate calculations (simulates Prometheus metrics without requiring heavy daemon setups).
-  - Configured traffic split ratios (simulates Istio/Envoy service mesh routing).
-
----
-
-## 8. API Reference
-
-| Endpoint | Method | Description |
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `/` | `GET` | Interactive DevOps Monitoring Dashboard |
-| `/health` | `GET` | Health probe (HTTP 200 = Healthy, HTTP 503 = Unhealthy) |
-| `/api/status` | `GET` | Current telemetry state, active release, candidate, traffic split |
-| `/api/config` | `GET` | Current disk file content, schema validation status & last deployment |
-| `/api/events` | `GET` | Chronological audit stream of all pipeline events |
-| `/api/deploy/healthy` | `POST` | Preset healthy trigger (candidate `v2.0` -> promoted) |
-| `/api/deploy/faulty` | `POST` | Preset faulty trigger (candidate `v3.0` -> auto-rollback) |
-| `/api/deploy/current-config` | `POST` | Live disk file deployment with validation & health evaluation |
-| `/api/reset` | `POST` | Resets state machine & audit log back to clean `v1.0` baseline |
+| `GET` | `/` | DevOps Monitoring Dashboard UI |
+| `GET` | `/health` | Application liveness probe (200 = HEALTHY, 503 = UNHEALTHY) |
+| `GET` | `/ready` | Application readiness probe (200 = READY, 503 = NOT_READY) |
+| `GET` | `/version` | Service identifier, active version, candidate version, environment |
+| `GET` | `/metrics` | Prometheus telemetry metrics (`prom-client`) |
+| `GET` | `/api/status` | Real-time JSON telemetry (active, candidate, split, rollback metadata) |
+| `GET` | `/api/config` | Current `release_config.json` state & validation status |
+| `GET` | `/api/events` | Chronological audit log of pipeline events |
+| `GET` | `/api/demo/products` | Sample business microservice catalog operation |
+| `POST` | `/api/demo/orders` | Sample business transaction processing operation |
+| `POST` | `/api/deploy/healthy` | Trigger preset healthy candidate rollout (`v2.0` &rarr; Promoted) |
+| `POST` | `/api/deploy/faulty` | Trigger preset faulty candidate rollout (`v3.0` &rarr; Auto-Rollback) |
+| `POST` | `/api/deploy/current-config`| Live disk file deployment with validation & health gating |
+| `POST` | `/api/reset` | Operator state reset to initial `v1.0` baseline |

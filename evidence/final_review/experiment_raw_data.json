@@ -1,0 +1,120 @@
+{
+  "metadata": {
+    "experiment_date": "2026-11-01T16:01:35.469Z",
+    "workload_target": "Demo Microservice HTTP Operations",
+    "num_trials": 3,
+    "baseline_definition": "Direct 100% traffic cutover without canary analysis",
+    "proposed_definition": "GitOps progressive delivery with Prometheus health gating and automated rollback"
+  },
+  "baseline_aggregates": {
+    "average_error_rate_percent": 38.22,
+    "average_availability_percent": 61.78,
+    "average_failed_requests": 73,
+    "average_detection_time_sec": 4.01,
+    "average_recovery_time_sec": 10.5,
+    "blast_radius_percent": 100
+  },
+  "progressive_aggregates": {
+    "average_error_rate_percent": 6.83,
+    "average_availability_percent": 93.17,
+    "average_failed_requests": 13.67,
+    "average_detection_time_sec": 4,
+    "average_recovery_time_sec": 0.8,
+    "blast_radius_percent": 10,
+    "blast_radius_reduction_percent": 90,
+    "recovery_time_speedup": 13.1
+  },
+  "raw_trials": {
+    "baseline": [
+      {
+        "trialId": 1,
+        "approach": "Conventional Deployment (Direct Cutover)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 100,
+        "totalRequests": 191,
+        "failedRequests": 76,
+        "errorRatePercent": 39.79,
+        "availabilityPercent": 60.21,
+        "detectionTimeSec": 4.02,
+        "recoveryTimeSec": 10.5,
+        "blastRadiusReductionPercent": 0,
+        "outcome": "Manual Intervention Required"
+      },
+      {
+        "trialId": 2,
+        "approach": "Conventional Deployment (Direct Cutover)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 100,
+        "totalRequests": 191,
+        "failedRequests": 72,
+        "errorRatePercent": 37.7,
+        "availabilityPercent": 62.3,
+        "detectionTimeSec": 4.01,
+        "recoveryTimeSec": 10.5,
+        "blastRadiusReductionPercent": 0,
+        "outcome": "Manual Intervention Required"
+      },
+      {
+        "trialId": 3,
+        "approach": "Conventional Deployment (Direct Cutover)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 100,
+        "totalRequests": 191,
+        "failedRequests": 71,
+        "errorRatePercent": 37.17,
+        "availabilityPercent": 62.83,
+        "detectionTimeSec": 4.01,
+        "recoveryTimeSec": 10.5,
+        "blastRadiusReductionPercent": 0,
+        "outcome": "Manual Intervention Required"
+      }
+    ],
+    "progressive": [
+      {
+        "trialId": 1,
+        "approach": "GitOps Progressive Delivery (CLOUD-05)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 10,
+        "totalRequests": 200,
+        "failedRequests": 14,
+        "errorRatePercent": 7,
+        "availabilityPercent": 93,
+        "detectionTimeSec": 4,
+        "recoveryTimeSec": 0.8,
+        "blastRadiusReductionPercent": 90,
+        "outcome": "Automated Circuit-Breaker Rollback Succeeded",
+        "restoredVersion": "v1.0"
+      },
+      {
+        "trialId": 2,
+        "approach": "GitOps Progressive Delivery (CLOUD-05)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 10,
+        "totalRequests": 200,
+        "failedRequests": 9,
+        "errorRatePercent": 4.5,
+        "availabilityPercent": 95.5,
+        "detectionTimeSec": 4,
+        "recoveryTimeSec": 0.8,
+        "blastRadiusReductionPercent": 90,
+        "outcome": "Automated Circuit-Breaker Rollback Succeeded",
+        "restoredVersion": "v1.0"
+      },
+      {
+        "trialId": 3,
+        "approach": "GitOps Progressive Delivery (CLOUD-05)",
+        "scenario": "Faulty Candidate Release",
+        "trafficExposurePercent": 10,
+        "totalRequests": 200,
+        "failedRequests": 18,
+        "errorRatePercent": 9,
+        "availabilityPercent": 91,
+        "detectionTimeSec": 4,
+        "recoveryTimeSec": 0.8,
+        "blastRadiusReductionPercent": 90,
+        "outcome": "Automated Circuit-Breaker Rollback Succeeded",
+        "restoredVersion": "v1.0"
+      }
+    ]
+  }
+}

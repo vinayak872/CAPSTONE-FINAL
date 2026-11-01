@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud05-config
+  namespace: cloud05-app
+  labels:
+    app.kubernetes.io/name: cloud05-service
+data:
+  PORT: "5005"
+  HOST: "0.0.0.0"
+  NODE_ENV: "production"
+  EXECUTION_MODE: "kubernetes"
+  KUBERNETES_NAMESPACE: "cloud05-app"
+  ARGO_ROLLOUT_NAME: "cloud05-service"
+  PROMETHEUS_METRICS_ENABLED: "true"
+  release_config.json: |
+    {
+      "version": "v1.0",
+      "message": "Baseline stable release",
+      "error_rate": 0,
+      "threshold": 5
+    }

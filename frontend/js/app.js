@@ -1,4 +1,4 @@
-// CL-05 Capstone: GitOps Progressive Delivery & Auto-Rollback Dashboard Logic
+// CLOUD-05: GitOps Progressive Delivery & Auto-Rollback Dashboard Logic
 
 let lastEventCount = 0;
 let lastTopEventId = null;
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchEvents();
     fetchConfig();
 
-    // High-responsiveness polling (1s) to immediately reflect disk configuration changes & deployment progress
+    // High-responsiveness polling (1s) to immediately reflect changes & deployment progress
     setInterval(fetchStatus, 1000);
     setInterval(fetchEvents, 1000);
     setInterval(fetchConfig, 1000);
@@ -20,6 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-deploy-faulty').addEventListener('click', triggerFaultyDeploy);
     document.getElementById('btn-deploy-config').addEventListener('click', triggerConfigDeploy);
     document.getElementById('btn-reset').addEventListener('click', triggerReset);
+
+    // Bind Demo Microservice Action Buttons
+    const btnDemoProducts = document.getElementById('btn-demo-products');
+    if (btnDemoProducts) btnDemoProducts.addEventListener('click', fetchDemoProducts);
+
+    const btnDemoOrder = document.getElementById('btn-demo-order');
+    if (btnDemoOrder) btnDemoOrder.addEventListener('click', placeDemoOrder);
 });
 
 async function fetchStatus() {
@@ -58,77 +65,104 @@ async function fetchConfig() {
 function updateDashboardUI(data) {
     // Active Version
     const activeVersionEl = document.getElementById('val-active-version');
-    activeVersionEl.textContent = data.active_version;
+    if (activeVersionEl) activeVersionEl.textContent = data.active_version;
 
     // Candidate Version
     const candidateVersionEl = document.getElementById('val-candidate-version');
     const candidateSubEl = document.getElementById('val-candidate-sub');
-    candidateVersionEl.textContent = data.candidate_version;
-    if (data.candidate_version !== 'NONE') {
-        candidateSubEl.textContent = `Canary analysis active`;
-        candidateVersionEl.style.color = '#F59E0B';
-    } else {
-        candidateSubEl.textContent = 'No canary in progress';
-        candidateVersionEl.style.color = 'inherit';
+    if (candidateVersionEl) {
+        candidateVersionEl.textContent = data.candidate_version;
+        if (data.candidate_version !== 'NONE') {
+            if (candidateSubEl) candidateSubEl.textContent = `Canary analysis active`;
+            candidateVersionEl.style.color = '#F59E0B';
+        } else {
+            if (candidateSubEl) candidateSubEl.textContent = 'No canary in progress';
+            candidateVersionEl.style.color = 'inherit';
+        }
     }
 
     // Deployment Status
     const statusEl = document.getElementById('val-deployment-status');
     const statusSubEl = document.getElementById('val-deployment-sub');
-    statusEl.textContent = data.deployment_status;
-    statusEl.className = 'metric-badge-large';
+    if (statusEl) {
+        statusEl.textContent = data.deployment_status;
+        statusEl.className = 'metric-badge-large';
 
-    if (data.deployment_status === 'STABLE') {
-        statusEl.classList.add('status-stable');
-        statusSubEl.textContent = 'Desired state converged';
-        setButtonsDisabled(false);
-        isDeploying = false;
-    } else if (data.deployment_status === 'DEPLOYING') {
-        statusEl.classList.add('status-deploying');
-        statusSubEl.textContent = 'Canary analysis in progress...';
-        setButtonsDisabled(true);
-        isDeploying = true;
-    } else if (data.deployment_status === 'ROLLED BACK') {
-        statusEl.classList.add('status-rolledback');
-        statusSubEl.textContent = 'Auto-reverted due to failed probe';
-        setButtonsDisabled(false);
-        isDeploying = false;
+        if (data.deployment_status === 'STABLE') {
+            statusEl.classList.add('status-stable');
+            if (statusSubEl) statusSubEl.textContent = 'Desired state converged';
+            setButtonsDisabled(false);
+            isDeploying = false;
+        } else if (data.deployment_status === 'DEPLOYING') {
+            statusEl.classList.add('status-deploying');
+            if (statusSubEl) statusSubEl.textContent = 'Canary analysis in progress...';
+            setButtonsDisabled(true);
+            isDeploying = true;
+        } else if (data.deployment_status === 'ROLLED BACK') {
+            statusEl.classList.add('status-rolledback');
+            if (statusSubEl) statusSubEl.textContent = 'Auto-reverted due to failed probe';
+            setButtonsDisabled(false);
+            isDeploying = false;
+        }
     }
 
     // Application Health
     const healthEl = document.getElementById('val-app-health');
     const healthSubEl = document.getElementById('val-app-health-sub');
-    healthEl.textContent = data.application_health;
-    healthEl.className = 'metric-badge-large';
-    if (data.application_health === 'HEALTHY') {
-        healthEl.classList.add('health-healthy');
-        if (healthSubEl) healthSubEl.textContent = 'HTTP 200 via /health (Simulated Probe)';
-    } else {
-        healthEl.classList.add('health-unhealthy');
-        if (healthSubEl) healthSubEl.textContent = 'HTTP 503 via /health (Simulated Failure)';
+    if (healthEl) {
+        healthEl.textContent = data.application_health;
+        healthEl.className = 'metric-badge-large';
+        if (data.application_health === 'HEALTHY') {
+            healthEl.classList.add('health-healthy');
+            if (healthSubEl) healthSubEl.textContent = 'HTTP 200 via /health probe';
+        } else {
+            healthEl.classList.add('health-unhealthy');
+            if (healthSubEl) healthSubEl.textContent = 'HTTP 503 via /health (Probe Failure)';
+        }
     }
 
     // Traffic Split
     const activePercent = data.traffic_split.active;
     const candidatePercent = data.traffic_split.candidate;
 
-    document.getElementById('traffic-bar-active').style.width = `${activePercent}%`;
-    document.getElementById('traffic-bar-candidate').style.width = `${candidatePercent}%`;
-    document.getElementById('bar-active-text').textContent = `${activePercent}%`;
-    document.getElementById('bar-candidate-text').textContent = `${candidatePercent}%`;
-    document.getElementById('traffic-split-label').textContent = 
-        `Active ${activePercent}% | Candidate ${candidatePercent}% (Configured)`;
+    const barActive = document.getElementById('traffic-bar-active');
+    const barCandidate = document.getElementById('traffic-bar-candidate');
+    if (barActive) barActive.style.width = `${activePercent}%`;
+    if (barCandidate) barCandidate.style.width = `${candidatePercent}%`;
+
+    const barActiveText = document.getElementById('bar-active-text');
+    const barCandidateText = document.getElementById('bar-candidate-text');
+    if (barActiveText) barActiveText.textContent = `${activePercent}%`;
+    if (barCandidateText) barCandidateText.textContent = `${candidatePercent}%`;
+
+    const trafficSplitLabel = document.getElementById('traffic-split-label');
+    if (trafficSplitLabel) {
+        trafficSplitLabel.textContent = `Active ${activePercent}% | Candidate ${candidatePercent}% (Configured)`;
+    }
+
+    // Update Cluster Connectivity & Execution Mode Pills
+    updateConnectivityPills(data);
+
+    // Update Pipeline Track Visualizer
+    updatePipelineVisualizer(data);
 
     // Rollback Card
     const rollbackCard = document.getElementById('rollback-card');
-    if (data.latest_rollback) {
-        rollbackCard.classList.remove('hidden');
-        document.getElementById('rollback-timestamp').textContent = data.latest_rollback.timestamp;
-        document.getElementById('rollback-failed-version').textContent = data.latest_rollback.failed_version;
-        document.getElementById('rollback-restored-version').textContent = data.latest_rollback.restored_version;
-        document.getElementById('rollback-reason').textContent = data.latest_rollback.reason;
-    } else {
-        rollbackCard.classList.add('hidden');
+    if (rollbackCard) {
+        if (data.latest_rollback) {
+            rollbackCard.classList.remove('hidden');
+            const rbTs = document.getElementById('rollback-timestamp');
+            const rbFailed = document.getElementById('rollback-failed-version');
+            const rbRestored = document.getElementById('rollback-restored-version');
+            const rbReason = document.getElementById('rollback-reason');
+
+            if (rbTs) rbTs.textContent = data.latest_rollback.timestamp;
+            if (rbFailed) rbFailed.textContent = data.latest_rollback.failed_version;
+            if (rbRestored) rbRestored.textContent = data.latest_rollback.restored_version;
+            if (rbReason) rbReason.textContent = data.latest_rollback.reason;
+        } else {
+            rollbackCard.classList.add('hidden');
+        }
     }
 
     // Update Configuration Card Status
@@ -146,6 +180,97 @@ function updateDashboardUI(data) {
             cfgResultEl.textContent = 'NONE';
             cfgResultEl.className = 'result-badge result-none font-mono';
         }
+    }
+}
+
+function updateConnectivityPills(data) {
+    const pillMode = document.getElementById('pill-execution-mode');
+    const pillK8s = document.getElementById('pill-k8s-status');
+    const pillArgo = document.getElementById('pill-argo-status');
+    const footerMode = document.getElementById('footer-execution-mode');
+
+    const isK8s = data.execution_mode === 'kubernetes' || (data.cluster_connectivity && data.cluster_connectivity.kubernetes);
+
+    if (pillMode) {
+        pillMode.textContent = isK8s ? 'Mode: Kubernetes (Connected)' : 'Engine: Node.js (Simulation Mode)';
+        pillMode.className = isK8s ? 'pill-active-tag' : 'pill-simulation-tag';
+    }
+
+    if (footerMode) {
+        footerMode.textContent = isK8s ? 'Kubernetes Connected Mode' : 'Simulation Mode (In-Memory Controller)';
+    }
+
+    if (pillK8s && data.cluster_connectivity) {
+        const k8sOnline = data.cluster_connectivity.kubernetes;
+        pillK8s.textContent = k8sOnline ? 'K8s: Online' : 'K8s: Offline';
+        pillK8s.className = k8sOnline ? 'pill-active-tag' : 'pill-offline-tag';
+    }
+
+    if (pillArgo && data.cluster_connectivity) {
+        const argoOnline = data.cluster_connectivity.argoRollouts;
+        pillArgo.textContent = argoOnline ? 'Argo Rollouts: Active' : 'Argo Rollouts: Offline';
+        pillArgo.className = argoOnline ? 'pill-active-tag' : 'pill-offline-tag';
+    }
+}
+
+function updatePipelineVisualizer(data) {
+    const overall = document.getElementById('pipeline-overall-status');
+    const step5 = document.getElementById('pipe-step-5');
+    const step6 = document.getElementById('pipe-step-6');
+    const step7 = document.getElementById('pipe-step-7');
+    const canaryMeta = document.getElementById('pipe-canary-meta');
+    const analysisMeta = document.getElementById('pipe-analysis-meta');
+    const finalTitle = document.getElementById('pipe-final-title');
+    const finalMeta = document.getElementById('pipe-final-meta');
+
+    if (!overall || !step5 || !step6 || !step7) return;
+
+    if (data.deployment_status === 'DEPLOYING') {
+        const candidateSplit = data.traffic_split.candidate;
+        overall.textContent = `Deploying Candidate ${data.candidate_version} (${candidateSplit}% Canary)`;
+        overall.className = 'badge badge-warning font-mono';
+
+        step5.className = 'pipe-step step-active';
+        if (canaryMeta) canaryMeta.textContent = `Weight: ${candidateSplit}%`;
+
+        if (candidateSplit >= 50) {
+            step6.className = 'pipe-step step-active';
+            if (analysisMeta) analysisMeta.textContent = 'Probes Evaluating...';
+        } else {
+            step6.className = 'pipe-step';
+            if (analysisMeta) analysisMeta.textContent = 'Awaiting Exposure';
+        }
+
+        step7.className = 'pipe-step';
+        if (finalTitle) finalTitle.textContent = 'Decision Gated';
+        if (finalMeta) finalMeta.textContent = 'Analyzing...';
+    } else if (data.deployment_status === 'ROLLED BACK') {
+        overall.textContent = `Automated Rollback Executed (Restored ${data.active_version})`;
+        overall.className = 'badge badge-danger font-mono';
+
+        step5.className = 'pipe-step step-complete';
+        if (canaryMeta) canaryMeta.textContent = 'Canary Aborted';
+
+        step6.className = 'pipe-step step-failed';
+        if (analysisMeta) analysisMeta.textContent = 'Probe Breached 503';
+
+        step7.className = 'pipe-step step-failed';
+        if (finalTitle) finalTitle.textContent = 'Rollback Triggered';
+        if (finalMeta) finalMeta.textContent = `Restored ${data.active_version}`;
+    } else {
+        // STABLE
+        overall.textContent = `Pipeline Converged (Active: ${data.active_version})`;
+        overall.className = 'badge badge-success font-mono';
+
+        step5.className = 'pipe-step';
+        if (canaryMeta) canaryMeta.textContent = 'No active canary';
+
+        step6.className = 'pipe-step';
+        if (analysisMeta) analysisMeta.textContent = 'Probes Idle';
+
+        step7.className = 'pipe-step step-complete';
+        if (finalTitle) finalTitle.textContent = 'Active Stable';
+        if (finalMeta) finalMeta.textContent = `Serving ${data.active_version}`;
     }
 }
 
@@ -195,13 +320,16 @@ function updateConfigUI(data) {
 }
 
 function updateEventsUI(events) {
-    document.getElementById('log-count').textContent = `${events.length} events`;
+    const logCountEl = document.getElementById('log-count');
+    if (logCountEl) logCountEl.textContent = `${events.length} events`;
+
     const topId = events.length > 0 ? events[0].id : null;
     if (events.length === lastEventCount && topId === lastTopEventId) return;
     lastEventCount = events.length;
     lastTopEventId = topId;
 
     const streamEl = document.getElementById('event-stream');
+    if (!streamEl) return;
     streamEl.innerHTML = '';
 
     events.forEach(event => {
@@ -309,6 +437,40 @@ async function triggerConfigDeploy() {
     }
 }
 
+async function fetchDemoProducts() {
+    const feedbackEl = document.getElementById('demo-feedback');
+    if (!feedbackEl) return;
+    feedbackEl.classList.remove('hidden');
+    feedbackEl.textContent = 'Querying GET /api/demo/products...';
+
+    try {
+        const res = await fetch('/api/demo/products');
+        const data = await res.json();
+        feedbackEl.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+        feedbackEl.textContent = `Error: ${err.message}`;
+    }
+}
+
+async function placeDemoOrder() {
+    const feedbackEl = document.getElementById('demo-feedback');
+    if (!feedbackEl) return;
+    feedbackEl.classList.remove('hidden');
+    feedbackEl.textContent = 'Posting order to /api/demo/orders...';
+
+    try {
+        const res = await fetch('/api/demo/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productId: 'prod-001', quantity: 2 })
+        });
+        const data = await res.json();
+        feedbackEl.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+        feedbackEl.textContent = `Error: ${err.message}`;
+    }
+}
+
 function showConfigFeedback(msg, type = 'info') {
     const feedbackEl = document.getElementById('config-feedback');
     if (!feedbackEl) return;
@@ -342,4 +504,3 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, m => map[m]);
 }
-

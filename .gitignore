@@ -12,3 +12,11 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+coverage/

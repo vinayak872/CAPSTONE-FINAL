@@ -1,0 +1,89 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: cloud05-service
+  namespace: cloud05-app
+  labels:
+    app.kubernetes.io/name: cloud05-service
+spec:
+  replicas: 4
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloud05-service
+  strategy:
+    canary:
+      # Services used for traffic routing between stable and candidate pods
+      activeService: cloud05-active-service
+      canaryService: cloud05-preview-service
+      # Automated Progressive Delivery Canary Steps
+      steps:
+        # Step 1: Route 10% traffic to candidate
+        - setWeight: 10
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+        # Step 2: Route 25% traffic to candidate
+        - setWeight: 25
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+        # Step 3: Route 50% traffic to candidate
+        - setWeight: 50
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+        # Final Step: If all analysis runs succeed, candidate promotes to 100% active
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloud05-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5005"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: app
+          image: cloud05-capstone:v1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5005
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cloud05-config
+            - secretRef:
+                name: cloud05-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2

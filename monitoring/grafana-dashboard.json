@@ -1,0 +1,105 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "CLOUD-05 Progressive Delivery & Health Overview",
+      "type": "row"
+    },
+    {
+      "id": 2,
+      "title": "Application Health Status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "cloud05_service_health_status{status=\"HEALTHY\"}",
+          "legendFormat": "Health Status",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "HEALTHY", "color": "green" }, "0": { "text": "UNHEALTHY", "color": "red" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Automated Rollbacks Triggered",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(cloud05_rollout_rollback_total) or vector(0)",
+          "legendFormat": "Rollbacks",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Configured Error Rate vs. Threshold",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        { "expr": "cloud05_release_config_error_rate", "legendFormat": "Candidate Error Rate (%)", "refId": "A" },
+        { "expr": "cloud05_release_config_threshold", "legendFormat": "Allowed Threshold (%)", "refId": "B" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Traffic Distribution (Active vs. Canary)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        { "expr": "cloud05_rollout_traffic_percent{role=\"active\"}", "legendFormat": "Active Release Traffic (%)", "refId": "A" },
+        { "expr": "cloud05_rollout_traffic_percent{role=\"candidate\"}", "legendFormat": "Canary Candidate Traffic (%)", "refId": "B" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "HTTP Request Rate & Error Rate (RPS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        { "expr": "sum(rate(cloud05_http_requests_total[1m]))", "legendFormat": "Total RPS", "refId": "A" },
+        { "expr": "sum(rate(cloud05_http_requests_total{status_code=~\"5..\"}[1m]))", "legendFormat": "5xx Error RPS", "refId": "B" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Request Latency (95th & 50th Percentile)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(cloud05_http_request_duration_seconds_bucket[1m])) by (le)) * 1000", "legendFormat": "p95 Latency (ms)", "refId": "A" },
+        { "expr": "histogram_quantile(0.50, sum(rate(cloud05_http_request_duration_seconds_bucket[1m])) by (le)) * 1000", "legendFormat": "p50 Latency (ms)", "refId": "B" }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["cloud05", "gitops", "canary", "argo-rollouts", "prometheus"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": { "refresh_intervals": ["1s", "5s", "10s"] },
+  "timezone": "browser",
+  "title": "CLOUD-05: Progressive Delivery & Auto-Rollback Dashboard",
+  "uid": "cloud05-progressive-delivery"
+}

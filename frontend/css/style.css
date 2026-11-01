@@ -744,3 +744,194 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* Status Pills */
+.pill-offline-tag {
+    background: rgba(107, 114, 128, 0.15);
+    color: #9CA3AF;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.pill-active-tag {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+/* Pipeline Stage Visualizer */
+.pipeline-card {
+    background: linear-gradient(180deg, #131B2E 0%, #0F172A 100%);
+    border: 1px solid #1E293B;
+}
+
+.pipeline-track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 0;
+}
+
+.pipe-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1E293B;
+    border: 1px solid #334155;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    min-width: 140px;
+    transition: all 0.3s ease;
+}
+
+.pipe-step.step-complete {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.pipe-step.step-complete .step-num {
+    background: #10B981;
+    color: #FFF;
+}
+
+.pipe-step.step-active {
+    border-color: #F59E0B;
+    background: rgba(245, 158, 11, 0.15);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+    animation: flash 1.5s infinite;
+}
+
+.pipe-step.step-active .step-num {
+    background: #F59E0B;
+    color: #000;
+}
+
+.pipe-step.step-failed {
+    border-color: #EF4444;
+    background: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+.pipe-step.step-failed .step-num {
+    background: #EF4444;
+    color: #FFF;
+}
+
+.step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #475569;
+    color: #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.step-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.step-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.step-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.pipe-arrow {
+    color: #475569;
+    font-weight: 700;
+    font-size: 16px;
+    user-select: none;
+}
+
+.traffic-caption {
+    margin-top: 8px;
+}
+
+/* Demo Microservice Card */
+.demo-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-secondary {
+    background: #1F2937;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: #374151;
+    border-color: #4B5563;
+}
+
+.demo-feedback {
+    margin-top: 12px;
+    padding: 10px;
+    background: #0B0F19;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: #38BDF8;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+/* Research Evaluation Grid */
+.research-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.research-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-subtle);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.research-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.research-value {
+    font-size: 15px;
+    color: #F8FAFC;
+}
