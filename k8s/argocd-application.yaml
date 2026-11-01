@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git://host.docker.internal:9418/
+    repoURL: https://github.com/vinayak872/CAPSTONE-FINAL.git
     targetRevision: main
     path: k8s
   destination:
