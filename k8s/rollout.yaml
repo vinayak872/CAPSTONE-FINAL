@@ -53,7 +53,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: app
-          image: cloud05-capstone:v1.0
+          image: cloud05-capstone:v3.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
