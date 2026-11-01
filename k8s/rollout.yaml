@@ -57,9 +57,9 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: RELEASE_VERSION
-              value: "v1.0"
+              value: "v5.0"
             - name: FAULT_MODE
-              value: "false"
+              value: "true"
           ports:
             - name: http
               containerPort: 5005
