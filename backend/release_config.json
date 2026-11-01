@@ -1,0 +1,6 @@
+{
+  "version": "v3.0",
+  "message": "Healthy release",
+  "error_rate": 0,
+  "threshold": 5
+}

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CL-05 Capstone: Progressive Delivery & Auto-Rollback Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Top Navbar -->
+        <header class="top-nav">
+            <div class="nav-brand">
+                <span class="project-tag">PROJECT</span>
+                <span class="project-title">CL-05 Capstone</span>
+                <span class="separator">/</span>
+                <span class="subtitle">GitOps Progressive Delivery &amp; Automated Rollback</span>
+            </div>
+            <div class="nav-actions">
+                <span class="pill-simulation-tag">Controller: In-Memory (Simulated)</span>
+                <span class="pill-simulation-tag">Health Checks: Simulated Probes</span>
+                <span class="live-indicator"><span class="pulse-dot"></span> Live Polling (1s)</span>
+                <button id="btn-reset" class="btn-ghost" title="Reset state to initial v1.0">Reset</button>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="dashboard-grid">
+            <!-- Left Column: Controls & Core Metrics -->
+            <section class="left-panel">
+                <!-- Action Controls Card -->
+                <div class="card control-card">
+                    <div class="card-header">
+                        <h2>Release Management Controls</h2>
+                        <span class="badge badge-subtle">Simulated Pipeline Triggers</span>
+                    </div>
+                    <div class="action-buttons-group">
+                        <button id="btn-deploy-healthy" class="btn btn-healthy">
+                            <div class="btn-icon">✓</div>
+                            <div class="btn-content">
+                                <span class="btn-title">Deploy Healthy Release</span>
+                                <span class="btn-desc">Deploy v2.0 &rarr; Health Checks Pass &rarr; Promoted to Active</span>
+                            </div>
+                        </button>
+
+                        <button id="btn-deploy-faulty" class="btn btn-faulty">
+                            <div class="btn-icon">⚠</div>
+                            <div class="btn-content">
+                                <span class="btn-title">Deploy Faulty Release</span>
+                                <span class="btn-desc">Deploy v3.0 &rarr; Health Checks Fail &rarr; Auto Rollback to Stable</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div id="action-feedback" class="action-feedback hidden"></div>
+                </div>
+
+                <!-- Live Configuration Deployment Section -->
+                <div class="card config-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h2>Live Configuration Deployment</h2>
+                            <code class="file-path-badge font-mono">backend/release_config.json</code>
+                        </div>
+                        <span id="config-status-badge" class="badge badge-info">File Synced</span>
+                    </div>
+                    <div class="config-grid">
+                        <div class="config-stat">
+                            <span class="stat-label">CONFIG FILE VERSION</span>
+                            <span id="cfg-target-version" class="stat-value font-mono">--</span>
+                        </div>
+                        <div class="config-stat">
+                            <span class="stat-label">CURRENT ACTIVE</span>
+                            <span id="cfg-active-version" class="stat-value font-mono highlight-green">v1.0</span>
+                        </div>
+                        <div class="config-stat">
+                            <span class="stat-label">CANDIDATE VERSION</span>
+                            <span id="cfg-candidate-version" class="stat-value font-mono">NONE</span>
+                        </div>
+                        <div class="config-stat">
+                            <span class="stat-label">CONFIGURED ERROR RATE</span>
+                            <span id="cfg-error-rate" class="stat-value font-mono">0%</span>
+                        </div>
+                        <div class="config-stat">
+                            <span class="stat-label">ALLOWED THRESHOLD</span>
+                            <span id="cfg-threshold" class="stat-value font-mono">5%</span>
+                        </div>
+                        <div class="config-stat">
+                            <span class="stat-label">PROJECTED OUTCOME</span>
+                            <span id="cfg-projected-outcome" class="stat-value font-mono">--</span>
+                        </div>
+                        <div class="config-stat config-stat-full">
+                            <span class="stat-label">LAST DEPLOYMENT RESULT</span>
+                            <span id="cfg-last-result" class="result-badge result-none font-mono">NONE</span>
+                        </div>
+                    </div>
+                    <div class="config-actions">
+                        <button id="btn-deploy-config" class="btn btn-config">
+                            <div class="btn-icon">⚡</div>
+                            <div class="btn-content">
+                                <span class="btn-title">Deploy Current Configuration</span>
+                                <span class="btn-desc">Evaluate <code class="font-mono">backend/release_config.json</code> &rarr; Health-Check &rarr; Promote or Auto-Rollback</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div id="config-feedback" class="action-feedback hidden"></div>
+                </div>
+
+                <!-- Primary Status Metrics Overview -->
+                <div class="metrics-grid">
+                    <div class="card metric-card">
+                        <div class="metric-label">ACTIVE RELEASE</div>
+                        <div id="val-active-version" class="metric-value font-mono highlight-green">v1.0</div>
+                        <div class="metric-sub">Serving production traffic</div>
+                    </div>
+
+                    <div class="card metric-card">
+                        <div class="metric-label">CANDIDATE RELEASE</div>
+                        <div id="val-candidate-version" class="metric-value font-mono">NONE</div>
+                        <div id="val-candidate-sub" class="metric-sub">No canary in progress</div>
+                    </div>
+
+                    <div class="card metric-card">
+                        <div class="metric-label">DEPLOYMENT STATUS</div>
+                        <div id="val-deployment-status" class="metric-badge-large status-stable">STABLE</div>
+                        <div id="val-deployment-sub" class="metric-sub">Desired state converged</div>
+                    </div>
+
+                    <div class="card metric-card">
+                        <div class="metric-label">APPLICATION HEALTH</div>
+                        <div id="val-app-health" class="metric-badge-large health-healthy">HEALTHY</div>
+                        <div id="val-app-health-sub" class="metric-sub">HTTP 200 via /health (Simulated Probe)</div>
+                    </div>
+                </div>
+
+                <!-- Traffic Split & Pipeline Visualizer -->
+                <div class="card traffic-card">
+                    <div class="card-header">
+                        <h3>Traffic Distribution (Simulated Canary Split)</h3>
+                        <span id="traffic-split-label" class="badge font-mono">Active 100% | Candidate 0% (Configured)</span>
+                    </div>
+                    <div class="traffic-bar-wrapper">
+                        <div id="traffic-bar-active" class="traffic-bar-segment segment-active" style="width: 100%;">
+                            <span class="bar-label">Active: <span id="bar-active-text">100%</span></span>
+                        </div>
+                        <div id="traffic-bar-candidate" class="traffic-bar-segment segment-candidate" style="width: 0%;">
+                            <span class="bar-label">Canary: <span id="bar-candidate-text">0%</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rollback Event Notice Card -->
+                <div id="rollback-card" class="card rollback-card hidden">
+                    <div class="card-header rollback-header">
+                        <div class="rollback-title">
+                            <span class="warning-icon">🚨</span>
+                            <h3>Automated Rollback Event Detected</h3>
+                        </div>
+                        <span id="rollback-timestamp" class="badge badge-danger font-mono">--:--:--</span>
+                    </div>
+                    <div class="rollback-body">
+                        <div class="rollback-row">
+                            <span class="prop-label">Failed Candidate:</span>
+                            <span id="rollback-failed-version" class="font-mono text-danger font-bold">--</span>
+                            <span class="prop-label ml-4">Restored Version:</span>
+                            <span id="rollback-restored-version" class="font-mono text-success font-bold">--</span>
+                        </div>
+                        <div class="rollback-row reason-row">
+                            <span class="prop-label">Trigger Reason:</span>
+                            <span id="rollback-reason" class="reason-text">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Live Event / Activity Log -->
+            <section class="right-panel">
+                <div class="card log-card">
+                    <div class="card-header log-header">
+                        <div class="log-title-wrap">
+                            <h2>Live Audit &amp; Event Stream</h2>
+                            <span id="log-count" class="badge badge-neutral font-mono">0 events</span>
+                        </div>
+                        <span class="badge badge-info">In-Memory Delivery Controller</span>
+                    </div>
+                    <div class="log-description">
+                        Chronological record of automated deployment stages, health checks, and rollback triggers.
+                    </div>
+                    <div id="event-stream" class="event-stream">
+                        <!-- Dynamic event items injected via app.js -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bottom-bar">
+            <span>Architecture: Python Flask + In-Memory State Machine + Auto-Rollback Engine</span>
+            <span>Infrastructure Mode: Local Simulated Environment (No external Kubernetes / Argo CD cluster connected)</span>
+            <span>Local Endpoint: <code class="font-mono">http://localhost:5005</code></span>
+        </footer>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
