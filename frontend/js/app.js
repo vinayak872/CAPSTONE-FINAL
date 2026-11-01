@@ -339,6 +339,29 @@ function updateGitopsUI(data) {
             analysisMetrics.textContent = summary;
         }
     }
+
+    // 4. Microservices Mesh Topology
+    const orderRollout = conn.order_service_rollout;
+    const meshGwVersion = document.getElementById('mesh-gw-version');
+    const msOrderBadge = document.getElementById('ms-order-badge');
+    const msOrderPhase = document.getElementById('ms-order-phase');
+    const msOrderPods = document.getElementById('ms-order-pods');
+
+    if (meshGwVersion) meshGwVersion.textContent = data.active_version;
+
+    if (orderRollout) {
+        if (msOrderBadge) {
+            msOrderBadge.textContent = orderRollout.phase.toUpperCase();
+            msOrderBadge.className = `badge ${orderRollout.phase === 'Healthy' ? 'badge-success' : (orderRollout.phase === 'Degraded' ? 'badge-danger' : 'badge-warning')} font-mono`;
+        }
+        if (msOrderPhase) {
+            msOrderPhase.textContent = `${orderRollout.phase} (${orderRollout.current_step})`;
+            msOrderPhase.className = `font-mono ${orderRollout.phase === 'Healthy' ? 'text-success' : (orderRollout.phase === 'Degraded' ? 'text-danger' : 'text-warning')} font-bold`;
+        }
+        if (msOrderPods) {
+            msOrderPods.textContent = `${orderRollout.ready_replicas} Ready / ${orderRollout.replicas} Total (${orderRollout.updated_replicas || 0} Canary)`;
+        }
+    }
 }
 
 async function triggerGitopsSync() {

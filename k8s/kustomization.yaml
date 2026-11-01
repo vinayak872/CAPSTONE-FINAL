@@ -10,3 +10,5 @@ resources:
   - services.yaml
   - analysis-template.yaml
   - rollout.yaml
+  - order-service-services.yaml
+  - order-service-rollout.yaml

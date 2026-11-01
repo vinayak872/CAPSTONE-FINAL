@@ -18,6 +18,7 @@ router.get('/status', (req, res) => {
       prometheus: k8sStatus.prometheus_connected,
       cluster_info: k8sStatus.cluster_info,
       cluster_rollout: k8sStatus.cluster_rollout,
+      order_service_rollout: k8sStatus.order_service_rollout,
       argocd_app: k8sStatus.argocd_app,
       latest_analysis_run: k8sStatus.latest_analysis_run
     },

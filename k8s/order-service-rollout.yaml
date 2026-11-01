@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: order-service
+  namespace: cloud05-app
+  labels:
+    app.kubernetes.io/name: order-service
+    service-tier: business
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-service
+  strategy:
+    canary:
+      canaryService: order-preview-service
+      stableService: order-active-service
+      trafficRouting: {}
+      steps:
+        - setWeight: 10
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+        - setWeight: 25
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+        - setWeight: 50
+        - pause: { duration: 15s }
+        - analysis:
+            templates:
+              - templateName: cloud05-health-analysis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5006"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: order-app
+          image: cloud05-order-service:v1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RELEASE_VERSION
+              value: "v1.0"
+            - name: FAULT_MODE
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 5006
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5006
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5006
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2

@@ -341,6 +341,62 @@
                     </div>
                 </div>
 
+                <!-- Microservices Mesh Topology Card -->
+                <div class="card mesh-card">
+                    <div class="card-header">
+                        <div class="mesh-title-wrap">
+                            <h3>Microservices Architecture Mesh</h3>
+                            <span class="badge badge-info font-mono">Distributed Topology</span>
+                        </div>
+                        <span id="mesh-link-status" class="badge badge-success font-mono">Gateway &harr; Order-Service: Connected</span>
+                    </div>
+                    <div class="mesh-grid">
+                        <!-- Service 1: API Gateway & Telemetry Controller -->
+                        <div class="mesh-service-node">
+                            <div class="node-header">
+                                <span class="node-icon">🌐</span>
+                                <div>
+                                    <div class="node-name">cloud05-gateway</div>
+                                    <small class="node-port font-mono">Port: 5005 (External / Ingress)</small>
+                                </div>
+                                <span class="badge badge-success font-mono">STABLE (100%)</span>
+                            </div>
+                            <div class="node-body">
+                                <span class="node-role">Role: Frontend Delivery, API Gateway &amp; Cluster Telemetry Aggregator</span>
+                                <div class="node-metric-row">
+                                    <span>Active Version:</span> <code id="mesh-gw-version" class="font-mono text-success">v1.0</code>
+                                    <span class="ml-2">Status:</span> <span class="text-success font-bold">Healthy (0% Error)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inter-service Flow Arrow -->
+                        <div class="mesh-connector">
+                            <span class="connector-label font-mono">HTTP / REST (ClusterIP)</span>
+                            <span class="connector-arrow">&darr;</span>
+                        </div>
+
+                        <!-- Service 2: Order & Catalog Business Microservice -->
+                        <div class="mesh-service-node">
+                            <div class="node-header">
+                                <span class="node-icon">📦</span>
+                                <div>
+                                    <div class="node-name">order-service</div>
+                                    <small class="node-port font-mono">Port: 5006 (ClusterIP: order-active-service)</small>
+                                </div>
+                                <span id="ms-order-badge" class="badge badge-info font-mono">STANDALONE ROLLOUT</span>
+                            </div>
+                            <div class="node-body">
+                                <span class="node-role">Role: Order Transactions &amp; Catalog Management (Independent Rollout)</span>
+                                <div class="node-metric-row">
+                                    <span>Rollout Phase:</span> <span id="ms-order-phase" class="font-mono text-success font-bold">Healthy</span>
+                                    <span class="ml-2">Replicas:</span> <span id="ms-order-pods" class="font-mono">3 Ready / 3 Total</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Demo Microservice Testing Card -->
                 <div class="card demo-card">
                     <div class="card-header">

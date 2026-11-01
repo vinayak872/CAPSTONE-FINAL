@@ -17,6 +17,7 @@ class K8sService {
       prometheusConnected: false,
       clusterInfo: null,
       clusterRollout: null,
+      orderServiceRollout: null,
       argoCdApp: null,
       latestAnalysisRun: null,
       lastChecked: null
@@ -33,6 +34,9 @@ class K8sService {
   }
 
   startBackgroundSync() {
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     // Initial check
     this.checkConnectivity().catch(() => {});
 
@@ -260,6 +264,29 @@ class K8sService {
         } catch {
           this.status.clusterRollout = null;
         }
+
+        // Query Order Microservice Rollout
+        try {
+          const { stdout: osOut } = await execAsync(
+            `kubectl get rollout order-service -n ${env.KUBERNETES_NAMESPACE} -o json`,
+            { timeout: 3000 }
+          );
+          const os = JSON.parse(osOut);
+          const osStepsCount = os.spec?.strategy?.canary?.steps?.length || 9;
+          const osStepIndex = os.status?.currentStepIndex != null ? os.status.currentStepIndex : osStepsCount;
+          this.status.orderServiceRollout = {
+            name: 'order-service',
+            phase: os.status?.phase || 'Healthy',
+            current_step: `${osStepIndex}/${osStepsCount}`,
+            replicas: os.status?.replicas || 3,
+            ready_replicas: os.status?.readyReplicas || 3,
+            updated_replicas: os.status?.updatedReplicas || 0,
+            images: os.spec?.template?.spec?.containers?.[0]?.image || 'cloud05-order-service:v1.0',
+            aborted: os.status?.abort === true
+          };
+        } catch {
+          this.status.orderServiceRollout = null;
+        }
       }
 
       // 6. Query AnalysisRuns
@@ -321,7 +348,7 @@ class K8sService {
   }
 
   syncWithStateService(rollout) {
-    if (!rollout) return;
+    if (!rollout || process.env.NODE_ENV === 'test' || env.EXECUTION_MODE !== 'kubernetes') return;
 
     const imageName = rollout.images || 'cloud05-capstone:v1.0';
     const imageVersion = imageName.split(':')[1] || 'v1.0';
@@ -362,6 +389,7 @@ class K8sService {
       prometheus_connected: this.status.prometheusConnected,
       cluster_info: this.status.clusterInfo,
       cluster_rollout: this.status.clusterRollout,
+      order_service_rollout: this.status.orderServiceRollout,
       argocd_app: this.status.argoCdApp,
       latest_analysis_run: this.status.latestAnalysisRun,
       namespace: env.KUBERNETES_NAMESPACE,

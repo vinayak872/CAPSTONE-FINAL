@@ -21,6 +21,28 @@ const failureModes = {
 
 // Realistic business operation: List products
 router.get('/demo/products', async (req, res) => {
+  const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://order-active-service.cloud05-app.svc.cluster.local:5006';
+
+  // Attempt inter-service communication with order-service microservice (when not in test mode)
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1200);
+      const msRes = await fetch(`${orderServiceUrl}/products`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (msRes.ok) {
+        const data = await msRes.json();
+        return res.json({
+          ...data,
+          routed_via: 'cloud05-gateway',
+          gateway_version: stateService.activeVersion
+        });
+      }
+    } catch {
+      // Graceful fallback to local handler if microservice is offline or in local test mode
+    }
+  }
+
   // Apply controlled failure mode if enabled in test environment
   if (failureModes.injectedLatencyMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, failureModes.injectedLatencyMs));
@@ -51,6 +73,33 @@ router.post('/demo/orders', async (req, res) => {
     return res.status(400).json({
       error: 'Validation Error: Valid productId and positive quantity are required'
     });
+  }
+
+  const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://order-active-service.cloud05-app.svc.cluster.local:5006';
+
+  // Attempt inter-service communication with order-service microservice (when not in test mode)
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1200);
+      const msRes = await fetch(`${orderServiceUrl}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, quantity }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (msRes.ok) {
+        const data = await msRes.json();
+        return res.status(201).json({
+          ...data,
+          routed_via: 'cloud05-gateway',
+          gateway_version: stateService.activeVersion
+        });
+      }
+    } catch {
+      // Graceful fallback to local handler
+    }
   }
 
   if (failureModes.elevatedErrorRate && Math.random() < 0.5) {
