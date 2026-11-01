@@ -9,7 +9,7 @@
 
 ## Abstract
 
-Continuous Delivery (CD) pipelines frequently deploy software increments directly into production environments. When an increment contains latent defects, conventional deployment patterns—such as direct cutover or un-gated rolling upgrades—expose 100% of the active user base to potential service disruption until manual detection, triage, and rollback can be orchestrated. This study investigates whether a **GitOps-driven progressive delivery architecture** integrating multi-stage canary traffic exposure, real-time telemetry analysis via Prometheus, and automated circuit-breaker rollback can statistically mitigate the blast radius and recovery time of faulty software releases. We implemented an end-to-end cloud-native system using Node.js/Express, Prometheus metrics instrumentation, declarative Kubernetes manifests, and Argo Rollouts canary strategies. In controlled comparative empirical trials against a conventional deployment baseline under identical application workloads, progressive delivery reduced the blast radius by **90.0%**, decreased mean user error rates from **38.22%** down to **6.83%**, and accelerated Mean Time to Recovery (MTTR) by **13.1x** (from 10.5s to 0.8s) via automated circuit breaker restoration. The findings demonstrate that declarative GitOps state reconciliation coupled with metric-driven progressive gating provides an effective defense against production deployment failures.
+Continuous Delivery (CD) pipelines frequently deploy software increments directly into production environments. When an increment contains latent defects, conventional deployment patterns—such as direct cutover or un-gated rolling upgrades—expose 100% of the active user base to potential service disruption until manual detection, triage, and rollback can be orchestrated. This study investigates whether a **GitOps-driven progressive delivery architecture** integrating multi-stage canary traffic exposure, real-time telemetry analysis via Prometheus, and automated circuit-breaker rollback can statistically mitigate the blast radius and recovery time of faulty software releases. We implemented an end-to-end cloud-native system using Node.js/Express, Prometheus metrics instrumentation, declarative Kubernetes manifests, and Argo Rollouts canary strategies. In controlled comparative empirical trials against a conventional deployment baseline under identical application workloads, progressive delivery restricted initial canary exposure to **10.0%** (a **90.0%** initial stage gate), reduced cumulative blast radius exposure by **65.5%** (from 100% down to 34.50%), decreased mean user error rates from **40.26%** down to **14.06%**, and accelerated Mean Time to Recovery (MTTR) by **12.4x** (from 9.30s down to 0.75s) via automated circuit breaker restoration. The findings demonstrate that declarative GitOps state reconciliation coupled with metric-driven progressive gating provides an effective defense against production deployment failures.
 
 ---
 
@@ -107,7 +107,8 @@ We executed two distinct deployment scenarios under identical HTTP traffic workl
 ### 5.2 Defined Evaluation Metrics
 - **Error Rate ($E_r$):** Percentage of total HTTP requests returning 5xx status codes during the deployment window:
   $$E_r = \frac{R_{5xx}}{R_{total}} \times 100$$
-- **Blast Radius Exposure ($B_r$):** Proportion of incoming requests routed to the unverified candidate version.
+- **Cumulative Blast Radius Exposure ($B_r$):** Proportion of incoming requests routed to the unverified candidate version throughout the test duration:
+  $$B_r = \frac{R_{candidate}}{R_{total}} \times 100$$
 - **Detection Latency ($T_{detect}$):** Time in seconds between candidate exposure and health violation detection.
 - **Recovery Time ($T_{recover}$ / MTTR):** Time in seconds between fault detection and restoration of healthy stable traffic.
 - **Stable Version Preservation:** Verification that the active release is never corrupted during rejections.
@@ -116,17 +117,18 @@ We executed two distinct deployment scenarios under identical HTTP traffic workl
 
 ## 6. Empirical Results & Findings
 
-Three consecutive trials were conducted for both deployment models. Raw logs and timing data were captured directly via the benchmark suite:
+Three consecutive trials were conducted for both deployment models under identical application workloads (5,000ms duration, ~50 RPS, 40% candidate defect probability). These three trials serve as preliminary empirical benchmark evidence. Raw request counts and timings were captured directly via `experiments/run_experiments.js` and logged to `evidence/final_review/experiment_raw_data.json`:
 
 ### 6.1 Benchmark Results Summary Table
 
 | Metric | Conventional Deployment (Baseline) | Progressive Delivery (CLOUD-05) | Improvement / Delta |
 | :--- | :--- | :--- | :--- |
-| **Blast Radius Exposure** | 100.0% | **10.0%** | **90.0% Reduction** |
-| **Mean User Error Rate** | 38.22% | **6.83%** | **82.1% Reduction** |
-| **Mean Failed Requests** | 76 requests / trial | **14 requests / trial** | **81.6% Fewer Failures** |
-| **Fault Detection Latency** | 4.0s (manual observation) | **4.0s** (automated analysis) | Automated & Deterministic |
-| **Mean Time to Recovery (MTTR)** | 10.5s (manual intervention) | **0.8s** (automated rollback) | **13.1x Faster Recovery** |
+| **Initial Stage Canary Weight** | 100.0% (instant cutover) | **10.0%** (canary step 1) | **90.0% Initial Gating** |
+| **Cumulative Faulty Exposure** | 100.0% (all requests exposed) | **34.50%** (measured cumulative) | **65.5% Exposure Reduction** |
+| **Mean User Error Rate** | 40.26% | **14.06%** | **65.1% Reduction** |
+| **Mean Failed Requests** | 96.3 requests / trial | **29.3 requests / trial** | **69.6% Fewer Failures** |
+| **Fault Detection Latency** | 4.01s (manual observation) | **4.01s** (automated analysis) | Automated & Deterministic |
+| **Mean Time to Recovery (MTTR)** | 9.30s (manual intervention) | **0.75s** (automated rollback) | **12.4x Faster Recovery** |
 | **Active Stable Preservation** | Vulnerable during cutover | **100% Guaranteed** | Complete State Isolation |
 | **Final Rollout Outcome** | Manual revert required | **Automated Rollback** | Zero Operator Fatigue |
 
@@ -135,29 +137,32 @@ Three consecutive trials were conducted for both deployment models. Raw logs and
 ## 7. Discussion & Academic Defensibility
 
 ### 7.1 Quantitative Impact
-The data confirms that canary exposure restriction combined with automated health gating dramatically limits failure impact:
-- In conventional deployment, all users suffered from the faulty candidate, producing a 38.22% overall error rate across the system.
-- In progressive delivery, only 10% of traffic was exposed during the initial canary stage. When the synthetic error rate breached the 5% threshold, the circuit breaker tripped immediately, returning 100% of traffic to the stable release. The overall error rate dropped to 6.83%.
+The data confirms that canary exposure restriction combined with automated health gating substantially limits failure impact:
+- In conventional deployment, all users suffered from the faulty candidate, producing a 40.26% overall error rate across the system.
+- In progressive delivery, only 10% of traffic was initially exposed. As the progressive rollout progressed through evaluation stages prior to health violation detection, the empirical cumulative request exposure to the candidate was **34.50%**.
+- Once Prometheus metric analysis registered an error rate breach (> 5% threshold), the automated circuit breaker tripped, instantly resetting candidate traffic to 0% and restoring 100% stable traffic. The overall system error rate was contained to **14.06%**, representing a **65.5% blast radius reduction** across the cumulative workload.
+- **Important Distinction:** The initial canary stage gate limits candidate exposure to 10% (a 90% reduction during step 1). The total cumulative blast radius across multi-step execution was empirically measured at 34.50% (a 65.5% cumulative reduction), correctly accounting for request exposure during the detection interval before automated rollback completion.
 
 ### 7.2 Recovery Acceleration
-The automated circuit breaker restored the previous stable version in **0.8 seconds**, compared to an estimated 10.5 seconds required for an operator to detect, diagnose, and execute manual rollback commands.
+The automated circuit breaker restored the previous stable version in an average of **0.75 seconds**, compared to **9.3 seconds** required for an operator to detect, diagnose, and execute manual rollback commands (a **12.4x speedup** in MTTR).
 
 ### 7.3 Threats to Validity
-- **Internal Validity:** Synthetic failure modes simulate real-world defects; actual production failures may have non-deterministic or intermittent symptoms requiring longer analysis windows.
-- **External Validity:** Trials were executed using local high-frequency benchmarking; real distributed clusters introduce additional network transit latencies for Prometheus scraping.
+- **Internal Validity:** Synthetic failure modes simulate real-world defects; actual production failures may have non-deterministic or intermittent symptoms requiring longer analysis windows. The 3 trials represent preliminary empirical benchmark evidence.
+- **External Validity:** Replica-based canary steps in Kubernetes without an ingress service mesh distribute traffic based on pod ratios rather than exact byte-level packet weighting.
 
 ---
 
 ## 8. Limitations & Future Work
 
-1. **Service Mesh Data-Plane:** Current traffic splits in local simulation mode are state-driven; integrating Istio or Envoy provides physical byte-level routing across heterogeneous clusters.
-2. **Multi-Metric Adaptive Analysis:** Future iterations can incorporate machine-learning anomaly detection (e.g., dynamic p99 latency thresholds) rather than static numerical limits.
+1. **Service Mesh vs Replica-Based Canary:** On standard Kubernetes without an Istio or Linkerd service mesh, Argo Rollouts canary steps (10%, 25%, 50%) scale pod replica ratios. Byte-level traffic shaping requires service mesh integrations (e.g. Istio VirtualService or AWS ALB).
+2. **Preliminary Sample Size:** Results reflect 3 controlled benchmark trials. Extended statistical validation across hundreds of runs in distributed multi-node clusters is planned for future work.
+3. **Adaptive Analysis:** Future iterations can incorporate machine-learning anomaly detection (e.g., dynamic p99 latency thresholds) rather than static numerical limits.
 
 ---
 
 ## 9. Conclusion
 
-This research confirms that **GitOps-based progressive delivery with automated health analysis and rollback substantially reduces the impact of faulty software releases**. Compared to conventional deployments, the proposed architecture reduced blast radius exposure by **90.0%**, lowered overall error rates from **38.22% to 6.83%**, and achieved a **13.1x faster recovery time** without requiring manual human intervention.
+This research confirms that **GitOps-based progressive delivery with automated health analysis and rollback substantially reduces the impact of faulty software releases**. Compared to conventional deployments, the proposed architecture reduced cumulative blast radius exposure by **65.5%** (limiting initial exposure to 10%), lowered overall error rates from **40.26% to 14.06%**, and achieved a **12.4x faster recovery time** (0.75s vs 9.3s) without requiring manual human intervention.
 
 ---
 

@@ -187,6 +187,8 @@ function updateConnectivityPills(data) {
     const pillMode = document.getElementById('pill-execution-mode');
     const pillK8s = document.getElementById('pill-k8s-status');
     const pillArgo = document.getElementById('pill-argo-status');
+    const pillArgocd = document.getElementById('pill-argocd-status');
+    const pillProm = document.getElementById('pill-prom-status');
     const footerMode = document.getElementById('footer-execution-mode');
 
     const isK8s = data.execution_mode === 'kubernetes' || (data.cluster_connectivity && data.cluster_connectivity.kubernetes);
@@ -197,7 +199,12 @@ function updateConnectivityPills(data) {
     }
 
     if (footerMode) {
-        footerMode.textContent = isK8s ? 'Kubernetes Connected Mode' : 'Simulation Mode (In-Memory Controller)';
+        const clusterInfo = data.cluster_connectivity?.cluster_rollout;
+        if (clusterInfo) {
+            footerMode.textContent = `Kubernetes Connected (Rollout ${clusterInfo.phase}, Step ${clusterInfo.current_step}, Pods ${clusterInfo.ready_replicas}/${clusterInfo.replicas})`;
+        } else {
+            footerMode.textContent = isK8s ? 'Kubernetes Connected Mode' : 'Simulation Mode (In-Memory Controller)';
+        }
     }
 
     if (pillK8s && data.cluster_connectivity) {
@@ -210,6 +217,18 @@ function updateConnectivityPills(data) {
         const argoOnline = data.cluster_connectivity.argoRollouts;
         pillArgo.textContent = argoOnline ? 'Argo Rollouts: Active' : 'Argo Rollouts: Offline';
         pillArgo.className = argoOnline ? 'pill-active-tag' : 'pill-offline-tag';
+    }
+
+    if (pillArgocd && data.cluster_connectivity) {
+        const argoCdOnline = data.cluster_connectivity.argoCd;
+        pillArgocd.textContent = argoCdOnline ? 'Argo CD: Synced' : 'Argo CD: Offline';
+        pillArgocd.className = argoCdOnline ? 'pill-active-tag' : 'pill-offline-tag';
+    }
+
+    if (pillProm && data.cluster_connectivity) {
+        const promOnline = data.cluster_connectivity.prometheus !== false;
+        pillProm.textContent = promOnline ? 'Prometheus: Active' : 'Prometheus: Offline';
+        pillProm.className = promOnline ? 'pill-active-tag' : 'pill-offline-tag';
     }
 }
 
