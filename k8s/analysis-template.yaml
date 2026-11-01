@@ -17,10 +17,12 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(cloud05_http_requests_total{status_code=~"2.."}[1m]))
-              /
-              sum(rate(cloud05_http_requests_total[1m]))
-            ) * 100
+              (
+                sum(rate(cloud05_http_requests_total{status_code=~"2.."}[1m]))
+                /
+                sum(rate(cloud05_http_requests_total[1m]))
+              ) * 100
+            ) or on() vector(100)
 
     - name: error-rate-threshold
       interval: 10s
@@ -32,7 +34,9 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(cloud05_http_requests_total{status_code=~"5.."}[1m]))
-              /
-              sum(rate(cloud05_http_requests_total[1m]))
-            ) * 100
+              (
+                sum(rate(cloud05_http_requests_total{status_code=~"5.."}[1m]))
+                /
+                sum(rate(cloud05_http_requests_total[1m]))
+              ) * 100
+            ) or on() vector(0)

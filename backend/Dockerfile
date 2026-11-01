@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # Multi-stage Dockerfile for CLOUD-05 Progressive Delivery Microservice
 
 # --- Stage 1: Build & Dependencies ---
@@ -9,14 +8,14 @@ WORKDIR /usr/src/app
 # Install dependencies needed for potential native builds
 RUN apk add --no-cache libc6-compat
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from backend directory
+COPY backend/package*.json ./
 
 # Install all dependencies (including devDependencies for build/testing)
 RUN npm ci
 
-# Copy application source code
-COPY . .
+# Copy application source code from backend directory
+COPY backend/ ./
 
 # Prune dev dependencies for lean production image
 RUN npm prune --production
@@ -42,8 +41,8 @@ COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/src ./src
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/package*.json ./
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/release_config.json ./
 
-# Copy frontend static files
-COPY --chown=nodeapp:nodejs ../frontend /usr/src/frontend
+# Copy frontend static files from repo root
+COPY --chown=nodeapp:nodejs frontend /usr/src/frontend
 
 # Container Healthcheck (Liveness / Readiness verification)
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

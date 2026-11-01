@@ -8,8 +8,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/capstone-cloud05/gitops-manifests.git
-    targetRevision: HEAD
+    repoURL: git://host.docker.internal:9418/
+    targetRevision: main
     path: k8s
   destination:
     server: https://kubernetes.default.svc

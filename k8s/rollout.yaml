@@ -14,7 +14,7 @@ spec:
   strategy:
     canary:
       # Services used for traffic routing between stable and candidate pods
-      activeService: cloud05-active-service
+      stableService: cloud05-active-service
       canaryService: cloud05-preview-service
       # Automated Progressive Delivery Canary Steps
       steps:
