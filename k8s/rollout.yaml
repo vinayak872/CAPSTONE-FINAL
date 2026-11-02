@@ -53,13 +53,13 @@ spec:
         fsGroup: 1001
       containers:
         - name: app
-          image: cloud05-capstone:v3.0
+          image: cloud05-capstone:v1.0
           imagePullPolicy: IfNotPresent
           env:
             - name: RELEASE_VERSION
-              value: "v5.0"
+              value: "v1.0"
             - name: FAULT_MODE
-              value: "true"
+              value: "false"
           ports:
             - name: http
               containerPort: 5005
