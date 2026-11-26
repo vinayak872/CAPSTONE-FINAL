@@ -9,8 +9,12 @@ router.get('/status', (req, res) => {
   const state = stateService.getState();
   const k8sStatus = k8sService.getStatus();
 
+  // If Kubernetes is connected, reflect execution_mode as 'kubernetes'
+  const activeExecutionMode = k8sStatus.kubernetes_connected ? 'kubernetes' : (state.execution_mode || 'simulation');
+
   res.json({
     ...state,
+    execution_mode: activeExecutionMode,
     cluster_connectivity: {
       kubernetes: k8sStatus.kubernetes_connected,
       argoRollouts: k8sStatus.argo_rollouts_connected,

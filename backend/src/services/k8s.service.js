@@ -33,6 +33,11 @@ class K8sService {
     this.lastObservedAnalysisPhase = null;
     this.hasSyncedRollout = false;
     this.isChecking = false;
+    this.consecutiveFailures = 0;
+    this.argoRolloutsFailures = 0;
+    this.argoCdFailures = 0;
+    this.prometheusFailures = 0;
+    this.rolloutQueryFailures = 0;
 
     // Start background sync loop
     this.startBackgroundSync();
@@ -117,12 +122,12 @@ class K8sService {
     // Initial check
     this.checkConnectivity().catch(() => {});
 
-    // High frequency cluster check every 1500ms
+    // Cluster connectivity sync every 3000ms with debouncing
     setInterval(() => {
       if (!this.isChecking) {
         this.checkConnectivity().catch(() => {});
       }
-    }, 1500);
+    }, 3000);
 
     // Synthetic traffic generator: sends a lightweight GET request every 2s
     // so Prometheus has live request telemetry to evaluate error and success rates.
@@ -183,31 +188,42 @@ class K8sService {
     const inCluster = this.isInCluster();
     try {
       // 1. Kubernetes cluster check
+      let k8sSuccess = false;
+      let clusterInfoText = null;
       try {
         if (inCluster) {
           const versionInfo = await this.inClusterRequest('/version');
-          this.status.kubernetesConnected = true;
-          this.status.clusterInfo = `In-cluster Kubernetes API (${versionInfo.gitVersion || 'connected'})`;
+          k8sSuccess = true;
+          clusterInfoText = `In-cluster Kubernetes API (${versionInfo.gitVersion || 'connected'})`;
         } else {
-          const { stdout } = await execAsync('kubectl cluster-info --request-timeout=2s', { timeout: 3000 });
-          this.status.kubernetesConnected = true;
-          this.status.clusterInfo = stdout.split('\n')[0] || 'Connected';
+          const { stdout } = await execAsync('kubectl cluster-info --request-timeout=5s', { timeout: 6000 });
+          k8sSuccess = true;
+          clusterInfoText = stdout.split('\n')[0] || 'Connected';
         }
       } catch {
-        this.status.kubernetesConnected = false;
-        this.status.clusterInfo = 'Cluster unreachable or Docker daemon not running';
+        k8sSuccess = false;
       }
 
-      if (!this.status.kubernetesConnected) {
-        this.status.argoRolloutsInstalled = false;
-        this.status.argoCdConnected = false;
-        this.status.prometheusConnected = false;
-        this.status.clusterRollout = null;
-        this.status.orderServiceRollout = null;
-        this.status.argoCdApp = null;
-        this.status.latestAnalysisRun = null;
-        this.status.lastChecked = new Date().toISOString();
-        return this.getStatus();
+      if (k8sSuccess) {
+        this.status.kubernetesConnected = true;
+        this.status.clusterInfo = clusterInfoText;
+        this.consecutiveFailures = 0;
+      } else {
+        this.consecutiveFailures += 1;
+        // Require 2 consecutive failures before marking K8s offline to absorb transient local API jitter
+        if (this.consecutiveFailures >= 2) {
+          this.status.kubernetesConnected = false;
+          this.status.clusterInfo = 'Cluster unreachable or Docker daemon not running';
+          this.status.argoRolloutsInstalled = false;
+          this.status.argoCdConnected = false;
+          this.status.prometheusConnected = false;
+          this.status.clusterRollout = null;
+          this.status.orderServiceRollout = null;
+          this.status.argoCdApp = null;
+          this.status.latestAnalysisRun = null;
+          this.status.lastChecked = new Date().toISOString();
+          return this.getStatus();
+        }
       }
 
       if (env.EXECUTION_MODE === 'kubernetes') {
@@ -219,25 +235,41 @@ class K8sService {
         if (inCluster) {
           await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/rollouts`);
         } else {
-          await execAsync('kubectl get crd rollouts.argoproj.io --request-timeout=2s', { timeout: 3000 });
+          await execAsync('kubectl get crd rollouts.argoproj.io --request-timeout=4s', { timeout: 5000 });
         }
         this.status.argoRolloutsInstalled = true;
+        this.argoRolloutsFailures = 0;
       } catch {
-        this.status.argoRolloutsInstalled = false;
+        this.argoRolloutsFailures += 1;
+        if (this.argoRolloutsFailures >= 2) {
+          this.status.argoRolloutsInstalled = false;
+        }
       }
 
       // 3. Prometheus Server check
       try {
-        this.status.prometheusConnected = await this.checkPrometheusReady();
+        const promReady = await this.checkPrometheusReady();
+        if (promReady) {
+          this.status.prometheusConnected = true;
+          this.prometheusFailures = 0;
+        } else {
+          this.prometheusFailures += 1;
+          if (this.prometheusFailures >= 2) {
+            this.status.prometheusConnected = false;
+          }
+        }
       } catch {
-        this.status.prometheusConnected = false;
+        this.prometheusFailures += 1;
+        if (this.prometheusFailures >= 2) {
+          this.status.prometheusConnected = false;
+        }
       }
 
       // 4. Query Argo CD Application
       try {
         const app = inCluster
           ? await this.inClusterRequest('/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/cloud05-progressive-delivery')
-          : JSON.parse((await execAsync('kubectl get application cloud05-progressive-delivery -n argocd -o json', { timeout: 4000 })).stdout);
+          : JSON.parse((await execAsync('kubectl get application cloud05-progressive-delivery -n argocd -o json', { timeout: 5000 })).stdout);
         const syncStatus = app.status?.sync?.status || 'Unknown';
         const healthStatus = app.status?.health?.status || 'Unknown';
         const revision = app.status?.sync?.revision || 'unknown';
@@ -246,6 +278,7 @@ class K8sService {
         const reconciledAt = app.status?.reconciledAt || null;
 
         this.status.argoCdConnected = true;
+        this.argoCdFailures = 0;
         this.status.argoCdApp = {
           name: app.metadata?.name || 'cloud05-progressive-delivery',
           sync_status: syncStatus,
@@ -269,8 +302,11 @@ class K8sService {
         }
         this.lastObservedRevision = revision;
       } catch {
-        this.status.argoCdConnected = false;
-        this.status.argoCdApp = null;
+        this.argoCdFailures += 1;
+        if (this.argoCdFailures >= 2) {
+          this.status.argoCdConnected = false;
+          this.status.argoCdApp = null;
+        }
       }
 
       // 5. Query Argo Rollout
@@ -364,8 +400,12 @@ class K8sService {
             );
             this.lastObservedStep = currentStep;
           }
+          this.rolloutQueryFailures = 0;
         } catch {
-          this.status.clusterRollout = null;
+          this.rolloutQueryFailures += 1;
+          if (this.rolloutQueryFailures >= 2) {
+            this.status.clusterRollout = null;
+          }
         }
 
         // Query Order Microservice Rollout
