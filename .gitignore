@@ -13,6 +13,13 @@ __pycache__/
 .idea/
 .vscode/
 
+# Secrets (never commit real Kubernetes secrets)
+k8s/secrets.yaml
+k8s/*.secret.yaml
+
+# Temporary local benchmark outputs
+evidence/final_review/real_http_benchmark.*
+
 # Node.js
 node_modules/
 npm-debug.log*

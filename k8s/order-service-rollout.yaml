@@ -16,23 +16,34 @@ spec:
     canary:
       canaryService: order-preview-service
       stableService: order-active-service
-      trafficRouting: {}
       steps:
         - setWeight: 10
         - pause: { duration: 15s }
         - analysis:
             templates:
-              - templateName: cloud05-health-analysis
+              - templateName: order-service-health-analysis
+            args:
+              - name: latest-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
         - setWeight: 25
         - pause: { duration: 15s }
         - analysis:
             templates:
-              - templateName: cloud05-health-analysis
+              - templateName: order-service-health-analysis
+            args:
+              - name: latest-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
         - setWeight: 50
         - pause: { duration: 15s }
         - analysis:
             templates:
-              - templateName: cloud05-health-analysis
+              - templateName: order-service-health-analysis
+            args:
+              - name: latest-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
   template:
     metadata:
       labels:
@@ -51,6 +62,11 @@ spec:
         - name: order-app
           image: cloud05-order-service:v1.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: RELEASE_VERSION
               value: "v1.0"
@@ -60,6 +76,9 @@ spec:
             - name: http
               containerPort: 5006
               protocol: TCP
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
           resources:
             requests:
               cpu: "100m"
@@ -83,3 +102,6 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 2
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}

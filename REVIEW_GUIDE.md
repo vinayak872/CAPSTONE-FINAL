@@ -1,3 +1,6 @@
+> [!NOTE]
+> **Historical Prototype Documentation:** This guide documents the initial Python/Flask baseline (`backend/app.py`) prior to the Node.js 20/Express, Prometheus, and Kubernetes/Argo Rollouts migration. For the active implementation, see [README.md](./README.md) and [evidence/final_review/research_paper.md](./evidence/final_review/research_paper.md).
+
 # CLOUD-05: Project Review & Viva Preparation Guide
 
 **Project Title:** Mini GitOps-Based Progressive Delivery and Automatic Rollback Demo  

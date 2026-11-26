@@ -6,37 +6,80 @@ metadata:
   labels:
     app.kubernetes.io/name: cloud05-service
 spec:
+  args:
+    - name: latest-hash
   metrics:
     - name: success-rate
       interval: 10s
       count: 3
-      successCondition: result[0] >= 95
+      successCondition: len(result) > 0 && result[0] >= 95
       failureLimit: 1
+      inconclusiveLimit: 2
       provider:
         prometheus:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              (
-                sum(rate(cloud05_http_requests_total{status_code=~"2.."}[1m]))
-                /
-                sum(rate(cloud05_http_requests_total[1m]))
-              ) * 100
-            ) or on() vector(100)
+              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+              /
+              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+            ) * 100
 
     - name: error-rate-threshold
       interval: 10s
       count: 3
-      successCondition: result[0] <= 5
+      successCondition: len(result) > 0 && result[0] <= 5
       failureLimit: 1
+      inconclusiveLimit: 2
       provider:
         prometheus:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              (
-                sum(rate(cloud05_http_requests_total{status_code=~"5.."}[1m]))
-                /
-                sum(rate(cloud05_http_requests_total[1m]))
-              ) * 100
-            ) or on() vector(0)
+              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+              /
+              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+            ) * 100
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: order-service-health-analysis
+  namespace: cloud05-app
+  labels:
+    app.kubernetes.io/name: order-service
+spec:
+  args:
+    - name: latest-hash
+  metrics:
+    - name: order-success-rate
+      interval: 10s
+      count: 3
+      successCondition: len(result) > 0 && result[0] >= 95
+      failureLimit: 1
+      inconclusiveLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring.svc.cluster.local:9090
+          query: |
+            (
+              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+              /
+              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+            ) * 100
+
+    - name: order-error-rate-threshold
+      interval: 10s
+      count: 3
+      successCondition: len(result) > 0 && result[0] <= 5
+      failureLimit: 1
+      inconclusiveLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring.svc.cluster.local:9090
+          query: |
+            (
+              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+              /
+              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+            ) * 100

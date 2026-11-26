@@ -20,15 +20,23 @@
                 <span class="subtitle">Automated Rollback &amp; Reliability Telemetry</span>
             </div>
             <div class="nav-actions">
-                <span id="pill-execution-mode" class="pill-simulation-tag">Engine: Node.js (Simulation Mode)</span>
-                <span id="pill-k8s-status" class="pill-offline-tag">K8s: Offline</span>
-                <span id="pill-argo-status" class="pill-offline-tag">Argo Rollouts: Offline</span>
-                <span id="pill-argocd-status" class="pill-offline-tag">Argo CD: Offline</span>
-                <span id="pill-prom-status" class="pill-active-tag">Prometheus: Active</span>
-                <span class="live-indicator"><span class="pulse-dot"></span> Polling (1s)</span>
+                <span id="pill-execution-mode" class="pill-simulation-tag">Engine: Node.js (Checking...)</span>
+                <span id="pill-k8s-status" class="pill-offline-tag">K8s: Unknown</span>
+                <span id="pill-argo-status" class="pill-offline-tag">Argo Rollouts: Unknown</span>
+                <span id="pill-argocd-status" class="pill-offline-tag">Argo CD: Unknown</span>
+                <span id="pill-prom-status" class="pill-offline-tag">Prometheus: Unknown</span>
+                <span class="live-indicator"><span class="pulse-dot"></span> <span id="loading-indicator">Loading...</span> | <span id="last-refresh-time">Last refresh: --</span></span>
                 <button id="btn-reset" class="btn-ghost" title="Reset state to initial v1.0">Reset</button>
             </div>
         </header>
+
+        <div id="api-connection-banner" class="cluster-abort-banner hidden">
+            <span class="abort-icon">⚠️</span>
+            <div class="abort-text">
+                <strong>Backend Connection Lost:</strong>
+                <span id="api-connection-error">Unable to reach /api/status. Retrying every 1s...</span>
+            </div>
+        </div>
 
         <!-- Deployment Pipeline Stage Visualizer -->
         <section class="card pipeline-card">
@@ -50,7 +58,7 @@
                     <div class="step-num">2</div>
                     <div class="step-content">
                         <span class="step-name">CI Validation</span>
-                        <span class="step-meta">Vitest &amp; Lint</span>
+                        <span class="step-meta">Vitest &amp; ESLint</span>
                     </div>
                 </div>
                 <div class="pipe-arrow">&rarr;</div>
@@ -110,8 +118,8 @@
                     <span class="badge badge-subtle font-mono">namespace: cloud05-app</span>
                 </div>
                 <div class="gitops-cluster-pills">
-                    <span id="badge-argocd-sync" class="badge badge-success font-mono">Argo CD: Synced</span>
-                    <span id="badge-rollout-phase" class="badge badge-info font-mono">Rollout: Healthy</span>
+                    <span id="badge-argocd-sync" class="badge badge-subtle font-mono">Argo CD: Offline</span>
+                    <span id="badge-rollout-phase" class="badge badge-subtle font-mono">Rollout: Offline</span>
                     <button id="btn-gitops-sync" class="btn btn-gitops-sync" title="Trigger immediate reconciliation from GitHub">
                         <span id="gitops-sync-icon">🔄</span> Force GitOps Sync
                     </button>
@@ -132,7 +140,7 @@
                         </div>
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">TRACKED BRANCH:</span>
-                            <span id="gitops-branch" class="gitops-stat-value font-mono">main</span>
+                            <span id="gitops-branch" class="gitops-stat-value font-mono">--</span>
                         </div>
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">SYNCED COMMIT:</span>
@@ -140,7 +148,7 @@
                                 <a id="gitops-commit-link" href="#" target="_blank" class="gitops-commit-badge font-mono">
                                     <span id="gitops-commit-sha">--</span> &nearr;
                                 </a>
-                                <span id="gitops-sync-status-badge" class="badge badge-success font-mono">SYNCED</span>
+                                <span id="gitops-sync-status-badge" class="badge badge-subtle font-mono">OFFLINE</span>
                             </div>
                         </div>
                         <div class="gitops-stat-row">
@@ -159,22 +167,22 @@
                     <div class="gitops-stat-list">
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">CONTROLLER LIFECYCLE:</span>
-                            <span id="live-rollout-phase" class="badge badge-success font-mono">HEALTHY</span>
-                            <span id="live-rollout-step" class="font-mono text-muted">Step 9/9 (100% Stable)</span>
+                            <span id="live-rollout-phase" class="badge badge-subtle font-mono">OFFLINE</span>
+                            <span id="live-rollout-step" class="font-mono text-muted">Cluster not connected</span>
                         </div>
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">POD REPLICAS:</span>
-                            <span id="live-rollout-pods" class="gitops-stat-value font-mono">4 Ready / 4 Total (0 Canary)</span>
+                            <span id="live-rollout-pods" class="gitops-stat-value font-mono">-- / --</span>
                         </div>
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">CONTAINER IMAGES:</span>
-                            <span id="live-rollout-image" class="gitops-stat-value font-mono highlight-green">cloud05-capstone:v1.0</span>
+                            <span id="live-rollout-image" class="gitops-stat-value font-mono">--</span>
                         </div>
                         <div class="gitops-stat-row">
                             <span class="gitops-stat-label">IN-CLUSTER PROMETHEUS ANALYSIS:</span>
                             <div id="live-analysis-box" class="analysis-box">
-                                <span id="live-analysis-badge" class="badge badge-success font-mono">SUCCESSFUL</span>
-                                <span id="live-analysis-metrics" class="font-mono text-muted text-xs">Error: 0% (&le;5%) | Success: 100% (&ge;95%)</span>
+                                <span id="live-analysis-badge" class="badge badge-subtle font-mono">OFFLINE</span>
+                                <span id="live-analysis-metrics" class="font-mono text-muted text-xs">Awaiting live AnalysisRun telemetry</span>
                             </div>
                         </div>
                     </div>
@@ -348,7 +356,7 @@
                             <h3>Microservices Architecture Mesh</h3>
                             <span class="badge badge-info font-mono">Distributed Topology</span>
                         </div>
-                        <span id="mesh-link-status" class="badge badge-success font-mono">Gateway &harr; Order-Service: Connected</span>
+                        <span id="mesh-link-status" class="badge badge-subtle font-mono">Gateway &harr; Order-Service: Checking...</span>
                     </div>
                     <div class="mesh-grid">
                         <!-- Service 1: API Gateway & Telemetry Controller -->
@@ -359,13 +367,13 @@
                                     <div class="node-name">cloud05-gateway</div>
                                     <small class="node-port font-mono">Port: 5005 (External / Ingress)</small>
                                 </div>
-                                <span class="badge badge-success font-mono">STABLE (100%)</span>
+                                <span id="mesh-gw-badge" class="badge badge-success font-mono">STABLE (100%)</span>
                             </div>
                             <div class="node-body">
                                 <span class="node-role">Role: Frontend Delivery, API Gateway &amp; Cluster Telemetry Aggregator</span>
                                 <div class="node-metric-row">
                                     <span>Active Version:</span> <code id="mesh-gw-version" class="font-mono text-success">v1.0</code>
-                                    <span class="ml-2">Status:</span> <span class="text-success font-bold">Healthy (0% Error)</span>
+                                    <span class="ml-2">Health:</span> <span id="mesh-gw-health" class="text-success font-bold">HEALTHY</span>
                                 </div>
                             </div>
                         </div>
@@ -384,13 +392,13 @@
                                     <div class="node-name">order-service</div>
                                     <small class="node-port font-mono">Port: 5006 (ClusterIP: order-active-service)</small>
                                 </div>
-                                <span id="ms-order-badge" class="badge badge-info font-mono">STANDALONE ROLLOUT</span>
+                                <span id="ms-order-badge" class="badge badge-subtle font-mono">OFFLINE</span>
                             </div>
                             <div class="node-body">
                                 <span class="node-role">Role: Order Transactions &amp; Catalog Management (Independent Rollout)</span>
                                 <div class="node-metric-row">
-                                    <span>Rollout Phase:</span> <span id="ms-order-phase" class="font-mono text-success font-bold">Healthy</span>
-                                    <span class="ml-2">Replicas:</span> <span id="ms-order-pods" class="font-mono">3 Ready / 3 Total</span>
+                                    <span>Rollout Phase:</span> <span id="ms-order-phase" class="font-mono text-muted">--</span>
+                                    <span class="ml-2">Replicas:</span> <span id="ms-order-pods" class="font-mono">-- / --</span>
                                 </div>
                             </div>
                         </div>
@@ -439,29 +447,29 @@
                 <!-- Research & Controlled Experiment Evaluation Card -->
                 <div class="card research-card">
                     <div class="card-header">
-                        <h3>Research Evaluation Metrics</h3>
-                        <span class="badge badge-info font-mono">Academic Defensibility</span>
+                        <h3>Recorded Research Findings (Simulation Benchmark)</h3>
+                        <span id="research-source-badge" class="badge badge-info font-mono">Loading /api/research...</span>
                     </div>
                     <div class="research-grid">
                         <div class="research-item">
-                            <span class="research-label">BLAST RADIUS REDUCTION</span>
-                            <span class="research-value text-success font-bold font-mono">80% - 90%</span>
-                            <small class="text-muted">Traffic exposure restricted during canary</small>
+                            <span class="research-label">CUMULATIVE BLAST RADIUS REDUCTION</span>
+                            <span id="res-blast-radius" class="research-value text-success font-bold font-mono">--</span>
+                            <small id="res-blast-sub" class="text-muted">Awaiting /api/research...</small>
                         </div>
                         <div class="research-item">
                             <span class="research-label">DETECTION LATENCY</span>
-                            <span class="research-value font-mono">2.0s - 4.2s</span>
-                            <small class="text-muted">Prometheus probe threshold evaluation</small>
+                            <span id="res-detection-latency" class="research-value font-mono">--</span>
+                            <small id="res-detection-sub" class="text-muted">Recorded simulated trials</small>
                         </div>
                         <div class="research-item">
                             <span class="research-label">RECOVERY TIME (MTTR)</span>
-                            <span class="research-value text-success font-bold font-mono">&lt; 1.0s</span>
-                            <small class="text-muted">Automated circuit-breaker state restoration</small>
+                            <span id="res-mttr" class="research-value text-success font-bold font-mono">--</span>
+                            <small id="res-mttr-sub" class="text-muted">Recorded simulated trials</small>
                         </div>
                         <div class="research-item">
-                            <span class="research-label">STABLE VERSION INTEGRITY</span>
-                            <span class="research-value text-success font-bold font-mono">100% Preserved</span>
-                            <small class="text-muted">Zero corruption on invalid config or failed probe</small>
+                            <span class="research-label">MEAN USER ERROR RATE</span>
+                            <span id="res-error-rate" class="research-value text-success font-bold font-mono">--</span>
+                            <small id="res-error-sub" class="text-muted">Progressive vs conventional baseline</small>
                         </div>
                     </div>
                 </div>

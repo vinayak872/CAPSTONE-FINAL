@@ -21,6 +21,19 @@ const failureModes = {
 
 // Realistic business operation: List products
 router.get('/demo/products', async (req, res) => {
+  // Apply controlled failure mode before proxying so faulty canary pods emit real HTTP 500s
+  if (failureModes.injectedLatencyMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, failureModes.injectedLatencyMs));
+  }
+
+  if (failureModes.elevatedErrorRate && Math.random() < 0.6) {
+    return res.status(500).json({
+      error: 'Simulated 500: Microservice database connection pool exhausted',
+      fault_injected: true,
+      active_version: stateService.activeVersion
+    });
+  }
+
   const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://order-active-service.cloud05-app.svc.cluster.local:5006';
 
   // Attempt inter-service communication with order-service microservice (when not in test mode)
@@ -43,19 +56,6 @@ router.get('/demo/products', async (req, res) => {
     }
   }
 
-  // Apply controlled failure mode if enabled in test environment
-  if (failureModes.injectedLatencyMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, failureModes.injectedLatencyMs));
-  }
-
-  if (failureModes.elevatedErrorRate && Math.random() < 0.6) {
-    return res.status(500).json({
-      error: 'Simulated 500: Microservice database connection pool exhausted',
-      fault_injected: true,
-      active_version: stateService.activeVersion
-    });
-  }
-
   return res.json({
     service: 'cloud05-demo-microservice',
     active_version: stateService.activeVersion,
@@ -69,9 +69,22 @@ router.get('/demo/products', async (req, res) => {
 router.post('/demo/orders', async (req, res) => {
   const { productId, quantity } = req.body || {};
 
-  if (!productId || !quantity || quantity < 1) {
+  if (
+    typeof productId !== 'string' ||
+    !productId.trim() ||
+    typeof quantity !== 'number' ||
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
     return res.status(400).json({
-      error: 'Validation Error: Valid productId and positive quantity are required'
+      error: 'Validation Error: Valid productId and positive integer quantity are required'
+    });
+  }
+
+  if (failureModes.elevatedErrorRate && Math.random() < 0.5) {
+    return res.status(503).json({
+      error: 'Simulated 503: Order processing pipeline degraded in candidate version',
+      fault_injected: true
     });
   }
 
@@ -100,13 +113,6 @@ router.post('/demo/orders', async (req, res) => {
     } catch {
       // Graceful fallback to local handler
     }
-  }
-
-  if (failureModes.elevatedErrorRate && Math.random() < 0.5) {
-    return res.status(503).json({
-      error: 'Simulated 503: Order processing pipeline degraded in candidate version',
-      fault_injected: true
-    });
   }
 
   const orderId = `ord-${Date.now().toString(36)}`;

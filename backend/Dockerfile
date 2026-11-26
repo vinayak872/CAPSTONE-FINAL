@@ -25,9 +25,12 @@ FROM node:20-alpine AS runner
 
 WORKDIR /usr/src/app
 
+ARG RELEASE_VERSION=v1.0
+
 ENV NODE_ENV=production
 ENV PORT=5005
 ENV HOST=0.0.0.0
+ENV RELEASE_VERSION=${RELEASE_VERSION}
 ENV FRONTEND_PATH=/usr/src/frontend
 ENV RELEASE_CONFIG_PATH=/usr/src/app/release_config.json
 
@@ -41,8 +44,9 @@ COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/src ./src
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/package*.json ./
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/release_config.json ./
 
-# Copy frontend static files from repo root
+# Copy frontend static files and research benchmark reference data
 COPY --chown=nodeapp:nodejs frontend /usr/src/frontend
+COPY --chown=nodeapp:nodejs evidence/final_review/experiment_raw_data.json /usr/src/evidence/final_review/experiment_raw_data.json
 
 # Container Healthcheck (Liveness / Readiness verification)
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

@@ -60,7 +60,6 @@ async function httpRequest(urlPath, { method = 'GET', data = null } = {}) {
  */
 async function runTrialBaseline(trialId) {
   console.log(`\n[Trial ${trialId}] Running Baseline: Conventional Deployment (Direct 100% Cutover)...`);
-  const trialStart = Date.now();
   const candidateDefectRate = 0.40; // 40% defect probability on faulty release
 
   let totalRequests = 0;

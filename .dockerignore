@@ -10,4 +10,7 @@ venv
 __pycache__
 *.pyc
 .DS_Store
-evidence
+evidence/*
+!evidence/final_review
+evidence/final_review/*
+!evidence/final_review/experiment_raw_data.json

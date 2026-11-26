@@ -36,6 +36,15 @@ describe('Demo Microservice Business Operations & Safe Failure Injection', () =>
     expect(res.body.error).toContain('Validation Error');
   });
 
+  it('3b. POST /api/demo/orders rejects non-integer string quantity with HTTP 400', async () => {
+    const res = await request(app)
+      .post('/api/demo/orders')
+      .send({ productId: 'prod-001', quantity: 'abc' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Validation Error');
+  });
+
   it('4. POST /api/demo/failure-injection allows test mode failure controls in development', async () => {
     const res = await request(app)
       .post('/api/demo/failure-injection')

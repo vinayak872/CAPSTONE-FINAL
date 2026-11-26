@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloud05-app-sa
+  namespace: cloud05-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cloud05-rollout-reader
+  namespace: cloud05-app
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["rollouts", "analysisruns", "analysistemplates"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloud05-rollout-reader-binding
+  namespace: cloud05-app
+subjects:
+  - kind: ServiceAccount
+    name: cloud05-app-sa
+    namespace: cloud05-app
+roleRef:
+  kind: Role
+  name: cloud05-rollout-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cloud05-argocd-app-reader
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: ["cloud05-progressive-delivery"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloud05-argocd-app-reader-binding
+  namespace: argocd
+subjects:
+  - kind: ServiceAccount
+    name: cloud05-app-sa
+    namespace: cloud05-app
+roleRef:
+  kind: Role
+  name: cloud05-argocd-app-reader
+  apiGroup: rbac.authorization.k8s.io

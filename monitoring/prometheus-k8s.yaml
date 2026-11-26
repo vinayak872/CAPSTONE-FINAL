@@ -89,7 +89,9 @@ spec:
       serviceAccountName: prometheus-k8s
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          # Pinned Prometheus v3.15.1 immutable digest (ephemeral emptyDir TSDB for local demo)
+          image: prom/prometheus@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+          imagePullPolicy: IfNotPresent
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
@@ -97,6 +99,25 @@ spec:
           ports:
             - name: web
               containerPort: 9090
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
             - name: config-volume
               mountPath: /etc/prometheus

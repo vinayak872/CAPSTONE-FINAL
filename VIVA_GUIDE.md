@@ -68,7 +68,7 @@ We implemented a controlled benchmark (`experiments/run_experiments.js`) compari
 We measured real HTTP requests, error rates, failure detection times, and recovery times across 3 consecutive trials.
 
 ### 1.13 What is the Actual Research Contribution?
-The contribution of CLOUD-05 is **an implemented, verifiable, and empirically measured progressive delivery framework** that proves that metric-gated progressive delivery reduces failure blast radius by **90.0%**, lowers mean error rates from **38.22% to 6.83%**, and accelerates recovery by **13.1x** without manual human intervention.
+The contribution of CLOUD-05 is **an implemented, verifiable, and empirically measured progressive delivery framework** demonstrating across 3 preliminary simulated benchmark trials (`experiment_raw_data.json`) that metric-gated progressive delivery restricts initial exposure to **10.0%** (**90.0%** initial stage gate), reduces cumulative failure blast radius by **65.5%** (from 100% to 34.50%), lowers mean error rates from **40.26% to 14.06%**, and accelerates recovery by **12.4x** (**0.75s vs 9.30s**) without manual human intervention.
 
 ### 1.14 What are the Real Limitations?
 - **Local Simulation vs. Physical Service Mesh:** In local simulation mode, traffic splits are programmatic state transitions rather than Envoy byte-level proxy routings.
@@ -125,7 +125,7 @@ The contribution of CLOUD-05 is **an implemented, verifiable, and empirically me
 - **Measured Traffic:** The actual real-world HTTP request count observed passing through ingress proxies. In local simulation mode, the weight is configured logically; labelling it clearly prevents misleading reviewers.
 
 ### Q15: What is the Mean Time to Recovery (MTTR) observed in your experiments?
-**Answer:** In our controlled experiments, conventional manual deployment required an average MTTR of **10.5 seconds** (time to detect failure + execute manual rollback commands). CLOUD-05 automated progressive delivery achieved an MTTR of **0.8 seconds**—a **13.1x faster recovery**.
+**Answer:** In our 3 controlled simulated benchmark trials (`experiment_raw_data.json`), conventional manual deployment required an average MTTR of **9.30 seconds** (time to detect failure + execute manual rollback commands). CLOUD-05 automated progressive delivery achieved an MTTR of **0.75 seconds**—a **12.4x faster recovery**.
 
 ### Q16: How does the event audit stream prevent memory exhaustion?
 **Answer:** In `backend/src/services/event.service.js`, the event list operates as a bounded ring buffer. When a new event is added via `unshift()`, `this.events` is sliced to `this.maxSize` (50 entries). Older events drop off, preventing unbounded memory growth.
@@ -134,7 +134,7 @@ The contribution of CLOUD-05 is **an implemented, verifiable, and empirically me
 **Answer:** `k8s/kustomization.yaml` declares all resources in a single bundle (`namespace`, `configmap`, `secrets`, `services`, `analysis-template`, `rollout`). It allows developers to validate manifests offline using `kubectl kustomize k8s/` and enables Argo CD to customize image tags declaratively across environments.
 
 ### Q18: What is a blast radius in cloud deployment reliability?
-**Answer:** Blast radius refers to the proportion of users, requests, or infrastructure components impacted when a system failure occurs. By capping initial canary exposure to 10%, CLOUD-05 reduces the blast radius of a faulty candidate by 90% compared to a 100% direct cutover.
+**Answer:** Blast radius refers to the proportion of users, requests, or infrastructure components impacted when a system failure occurs. By capping initial canary exposure to 10% (90% initial gate), CLOUD-05 achieved a **65.5%** cumulative blast radius reduction (34.50% cumulative exposure) across the multi-step rollout window compared to a 100% direct cutover.
 
 ### Q19: What did the 24 Vitest tests verify?
 **Answer:** The test suite verified:

@@ -2,13 +2,13 @@
 
 let lastEventCount = 0;
 let lastTopEventId = null;
-let isDeploying = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initial fetch
     fetchStatus();
     fetchEvents();
     fetchConfig();
+    fetchResearch();
 
     // High-responsiveness polling (1s) to immediately reflect changes & deployment progress
     setInterval(fetchStatus, 1000);
@@ -34,13 +34,56 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchStatus() {
+    const banner = document.getElementById('api-connection-banner');
+    const errEl = document.getElementById('api-connection-error');
+    const loadingEl = document.getElementById('loading-indicator');
+    const refreshEl = document.getElementById('last-refresh-time');
     try {
         const response = await fetch('/api/status');
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
+        if (banner) banner.classList.add('hidden');
+        if (loadingEl) loadingEl.textContent = 'Polling (1s)';
+        if (refreshEl) refreshEl.textContent = `Last refresh: ${new Date().toLocaleTimeString()}`;
         updateDashboardUI(data);
     } catch (err) {
         console.error('Failed to fetch status:', err);
+        if (banner) banner.classList.remove('hidden');
+        if (errEl) errEl.textContent = `Unable to reach /api/status (${err.message}). Retrying every 1s...`;
+        if (loadingEl) loadingEl.textContent = 'Reconnecting...';
+    }
+}
+
+async function fetchResearch() {
+    const badge = document.getElementById('research-source-badge');
+    const blastEl = document.getElementById('res-blast-radius');
+    const blastSub = document.getElementById('res-blast-sub');
+    const detectEl = document.getElementById('res-detection-latency');
+    const mttrEl = document.getElementById('res-mttr');
+    const mttrSub = document.getElementById('res-mttr-sub');
+    const errEl = document.getElementById('res-error-rate');
+    try {
+        const res = await fetch('/api/research');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const base = data.baseline_aggregates || {};
+        const prog = data.progressive_aggregates || {};
+        const trials = data.metadata?.num_trials || '--';
+
+        if (badge) badge.textContent = `${data.source || 'experiment_raw_data.json'} (${trials} trials)`;
+        if (blastEl) blastEl.textContent = `${prog.blast_radius_reduction_percent ?? '--'}%`;
+        if (blastSub) blastSub.textContent = `${prog.average_faulty_exposure_percent ?? '--'}% cumulative exposure (vs 100% direct cutover)`;
+        if (detectEl) detectEl.textContent = `${prog.average_detection_time_sec ?? '--'}s`;
+        if (mttrEl) mttrEl.textContent = `${prog.average_recovery_time_sec ?? '--'}s (${prog.mttr_speedup_factor ?? '--'}x)`;
+        if (mttrSub) mttrSub.textContent = `vs ${base.average_recovery_time_sec ?? '--'}s conventional baseline`;
+        if (errEl) errEl.textContent = `${prog.average_error_rate_percent ?? '--'}% vs ${base.average_error_rate_percent ?? '--'}%`;
+    } catch {
+        if (badge) badge.textContent = 'Unavailable';
+        if (blastEl) blastEl.textContent = 'UNAVAILABLE';
+        if (blastSub) blastSub.textContent = 'Failed to load /api/research';
+        if (detectEl) detectEl.textContent = '--';
+        if (mttrEl) mttrEl.textContent = '--';
+        if (errEl) errEl.textContent = '--';
     }
 }
 
@@ -96,17 +139,14 @@ function updateDashboardUI(data) {
             statusEl.classList.add('status-stable');
             if (statusSubEl) statusSubEl.textContent = 'Desired state converged';
             setButtonsDisabled(false);
-            isDeploying = false;
         } else if (data.deployment_status === 'DEPLOYING') {
             statusEl.classList.add('status-deploying');
             if (statusSubEl) statusSubEl.textContent = 'Canary analysis in progress...';
             setButtonsDisabled(true);
-            isDeploying = true;
         } else if (data.deployment_status === 'ROLLED BACK') {
             statusEl.classList.add('status-rolledback');
             if (statusSubEl) statusSubEl.textContent = 'Auto-reverted due to failed probe';
             setButtonsDisabled(false);
-            isDeploying = false;
         }
     }
 
@@ -216,25 +256,28 @@ function updateConnectivityPills(data) {
 
     if (pillK8s && data.cluster_connectivity) {
         const k8sOnline = data.cluster_connectivity.kubernetes;
-        pillK8s.textContent = k8sOnline ? 'K8s: Online' : 'K8s: Offline';
+        pillK8s.textContent = k8sOnline ? 'K8s: Online' : 'K8s: Unavailable';
         pillK8s.className = k8sOnline ? 'pill-active-tag' : 'pill-offline-tag';
     }
 
     if (pillArgo && data.cluster_connectivity) {
+        const k8sOnline = data.cluster_connectivity.kubernetes;
         const argoOnline = data.cluster_connectivity.argoRollouts;
-        pillArgo.textContent = argoOnline ? 'Argo Rollouts: Active' : 'Argo Rollouts: Offline';
+        pillArgo.textContent = !k8sOnline ? 'Argo Rollouts: Unknown' : (argoOnline ? 'Argo Rollouts: Active' : 'Argo Rollouts: Unavailable');
         pillArgo.className = argoOnline ? 'pill-active-tag' : 'pill-offline-tag';
     }
 
     if (pillArgocd && data.cluster_connectivity) {
+        const k8sOnline = data.cluster_connectivity.kubernetes;
         const argoCdOnline = data.cluster_connectivity.argoCd;
-        pillArgocd.textContent = argoCdOnline ? 'Argo CD: Synced' : 'Argo CD: Offline';
+        pillArgocd.textContent = !k8sOnline ? 'Argo CD: Unknown' : (argoCdOnline ? 'Argo CD: Connected' : 'Argo CD: Unavailable');
         pillArgocd.className = argoCdOnline ? 'pill-active-tag' : 'pill-offline-tag';
     }
 
     if (pillProm && data.cluster_connectivity) {
-        const promOnline = data.cluster_connectivity.prometheus !== false;
-        pillProm.textContent = promOnline ? 'Prometheus: Active' : 'Prometheus: Offline';
+        const k8sOnline = data.cluster_connectivity.kubernetes;
+        const promOnline = data.cluster_connectivity.prometheus === true;
+        pillProm.textContent = !k8sOnline ? 'Prometheus: Unknown' : (promOnline ? 'Prometheus: Active' : 'Prometheus: Unavailable');
         pillProm.className = promOnline ? 'pill-active-tag' : 'pill-offline-tag';
     }
 }
@@ -246,7 +289,6 @@ function updateGitopsUI(data) {
     // 1. Argo CD Live Telemetry
     const app = conn.argocd_app;
     const badgeArgo = document.getElementById('badge-argocd-sync');
-    const gitopsRepoLink = document.getElementById('gitops-repo-link');
     const gitopsBranch = document.getElementById('gitops-branch');
     const gitopsCommitSha = document.getElementById('gitops-commit-sha');
     const gitopsCommitLink = document.getElementById('gitops-commit-link');
@@ -271,6 +313,19 @@ function updateGitopsUI(data) {
             const dt = new Date(app.reconciled_at);
             gitopsReconciled.textContent = dt.toLocaleTimeString();
         }
+    } else {
+        if (badgeArgo) {
+            badgeArgo.textContent = 'Argo CD: Offline';
+            badgeArgo.className = 'badge badge-subtle font-mono';
+        }
+        if (gitopsBranch) gitopsBranch.textContent = '--';
+        if (gitopsCommitSha) gitopsCommitSha.textContent = '--';
+        if (gitopsCommitLink) gitopsCommitLink.href = '#';
+        if (gitopsSyncBadge) {
+            gitopsSyncBadge.textContent = 'OFFLINE';
+            gitopsSyncBadge.className = 'badge badge-subtle font-mono';
+        }
+        if (gitopsReconciled) gitopsReconciled.textContent = '--';
     }
 
     // 2. Argo Rollout Live Telemetry
@@ -297,7 +352,7 @@ function updateGitopsUI(data) {
                 liveRoStep.textContent = `Step ${ro.current_step} (${ro.current_weight}% Canary Weight)`;
                 liveRoStep.style.color = '#F59E0B';
             } else if (ro.phase === 'Degraded' || ro.aborted) {
-                liveRoStep.textContent = `Rollout Aborted (Automated Circuit Breaker)`;
+                liveRoStep.textContent = 'Rollout Aborted (Automated Circuit Breaker)';
                 liveRoStep.style.color = '#EF4444';
             } else {
                 liveRoStep.textContent = `Step ${ro.current_step} (100% Stable)`;
@@ -309,6 +364,7 @@ function updateGitopsUI(data) {
         }
         if (liveRoImage) {
             liveRoImage.textContent = ro.images;
+            liveRoImage.className = 'gitops-stat-value font-mono highlight-green';
         }
 
         // Abort & Rollback Banner
@@ -316,12 +372,31 @@ function updateGitopsUI(data) {
             if (ro.aborted || ro.phase === 'Degraded') {
                 liveAbortBanner.classList.remove('hidden');
                 if (liveAbortDesc) {
-                    liveAbortDesc.textContent = ro.abort_reason || 'Candidate breached Prometheus error rate threshold (<= 5%). Rollout aborted by Argo Rollouts controller; traffic reverted safely to v1.0.';
+                    liveAbortDesc.textContent = ro.abort_reason || 'Candidate breached Prometheus error rate threshold (<= 5%). Rollout aborted by Argo Rollouts controller; traffic reverted safely to stable.';
                 }
             } else {
                 liveAbortBanner.classList.add('hidden');
             }
         }
+    } else {
+        if (badgeRo) {
+            badgeRo.textContent = 'Rollout: Offline';
+            badgeRo.className = 'badge badge-subtle font-mono';
+        }
+        if (liveRoPhase) {
+            liveRoPhase.textContent = 'OFFLINE';
+            liveRoPhase.className = 'badge badge-subtle font-mono';
+        }
+        if (liveRoStep) {
+            liveRoStep.textContent = 'Cluster not connected';
+            liveRoStep.style.color = '';
+        }
+        if (liveRoPods) liveRoPods.textContent = '-- / --';
+        if (liveRoImage) {
+            liveRoImage.textContent = '--';
+            liveRoImage.className = 'gitops-stat-value font-mono';
+        }
+        if (liveAbortBanner) liveAbortBanner.classList.add('hidden');
     }
 
     // 3. In-Cluster Prometheus AnalysisRun Details
@@ -338,18 +413,39 @@ function updateGitopsUI(data) {
             const summary = ar.metrics.map(m => `${m.name}: ${m.value}`).join(' | ');
             analysisMetrics.textContent = summary;
         }
+    } else {
+        if (analysisBadge) {
+            analysisBadge.textContent = 'OFFLINE';
+            analysisBadge.className = 'badge badge-subtle font-mono';
+        }
+        if (analysisMetrics) analysisMetrics.textContent = 'Awaiting live AnalysisRun telemetry';
     }
 
     // 4. Microservices Mesh Topology
     const orderRollout = conn.order_service_rollout;
+    const meshLinkStatus = document.getElementById('mesh-link-status');
     const meshGwVersion = document.getElementById('mesh-gw-version');
+    const meshGwBadge = document.getElementById('mesh-gw-badge');
+    const meshGwHealth = document.getElementById('mesh-gw-health');
     const msOrderBadge = document.getElementById('ms-order-badge');
     const msOrderPhase = document.getElementById('ms-order-phase');
     const msOrderPods = document.getElementById('ms-order-pods');
 
     if (meshGwVersion) meshGwVersion.textContent = data.active_version;
+    if (meshGwBadge) {
+        meshGwBadge.textContent = `${data.deployment_status} (${data.traffic_split.active}%)`;
+        meshGwBadge.className = `badge ${data.deployment_status === 'STABLE' ? 'badge-success' : 'badge-warning'} font-mono`;
+    }
+    if (meshGwHealth) {
+        meshGwHealth.textContent = data.application_health;
+        meshGwHealth.className = `${data.application_health === 'HEALTHY' ? 'text-success' : 'text-danger'} font-bold`;
+    }
 
     if (orderRollout) {
+        if (meshLinkStatus) {
+            meshLinkStatus.textContent = 'Gateway \u2194 Order-Service: Cluster Active';
+            meshLinkStatus.className = 'badge badge-success font-mono';
+        }
         if (msOrderBadge) {
             msOrderBadge.textContent = orderRollout.phase.toUpperCase();
             msOrderBadge.className = `badge ${orderRollout.phase === 'Healthy' ? 'badge-success' : (orderRollout.phase === 'Degraded' ? 'badge-danger' : 'badge-warning')} font-mono`;
@@ -361,6 +457,20 @@ function updateGitopsUI(data) {
         if (msOrderPods) {
             msOrderPods.textContent = `${orderRollout.ready_replicas} Ready / ${orderRollout.replicas} Total (${orderRollout.updated_replicas || 0} Canary)`;
         }
+    } else {
+        if (meshLinkStatus) {
+            meshLinkStatus.textContent = 'Gateway \u2194 Order-Service: Fallback Mode (Offline)';
+            meshLinkStatus.className = 'badge badge-subtle font-mono';
+        }
+        if (msOrderBadge) {
+            msOrderBadge.textContent = 'OFFLINE';
+            msOrderBadge.className = 'badge badge-subtle font-mono';
+        }
+        if (msOrderPhase) {
+            msOrderPhase.textContent = '--';
+            msOrderPhase.className = 'font-mono text-muted';
+        }
+        if (msOrderPods) msOrderPods.textContent = '-- / --';
     }
 }
 
@@ -371,7 +481,7 @@ async function triggerGitopsSync() {
     if (icon) icon.textContent = '⏳';
     try {
         const res = await fetch('/api/k8s/sync', { method: 'POST' });
-        const data = await res.json();
+        await res.json();
         if (icon) icon.textContent = '✓';
         setTimeout(() => {
             if (icon) icon.textContent = '🔄';

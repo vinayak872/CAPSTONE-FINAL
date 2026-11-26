@@ -2,14 +2,14 @@ name: CLOUD-05 CI/CD & Progressive Delivery Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, cloud05-critical-fixes]
   pull_request:
     branches: [main, master]
 
 jobs:
-  # --- Stage 1: Validation, Linting & Unit/Integration Tests ---
+  # --- Stage 1: Linting, Unit/Integration Tests, E2E & Dependency Security ---
   test:
-    name: 1. Test & Quality Gate
+    name: 1. Test, Lint & Security Audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -20,23 +20,49 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            backend/package-lock.json
+            services/order-service/package-lock.json
 
-      - name: Install Dependencies
+      - name: Install Backend Dependencies (Lockfile)
         working-directory: ./backend
         run: npm ci
 
-      - name: Run JavaScript Unit & Integration Tests
+      - name: Install Order-Service Dependencies (Lockfile)
+        working-directory: ./services/order-service
+        run: npm ci
+
+      - name: Run ESLint Across Repository
+        working-directory: ./backend
+        run: npm run lint
+
+      - name: Run Backend Unit & Integration Tests (Vitest)
         working-directory: ./backend
         run: npm test
 
-      - name: Security Vulnerability Audit
-        working-directory: ./backend
-        run: npm audit --audit-level=high || true
+      - name: Run Order-Service Tests
+        working-directory: ./services/order-service
+        run: npm test
+
+      - name: Run Live HTTP End-to-End Suite
+        run: |
+          node backend/src/server.js &
+          SRV_PID=$!
+          trap "kill $SRV_PID 2>/dev/null || true" EXIT
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:5005/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node test_e2e.js
+
+      - name: Production Dependency Security Audit
+        run: |
+          npm --prefix backend audit --omit=dev --audit-level=high
+          npm --prefix services/order-service audit --omit=dev --audit-level=high
 
   # --- Stage 2: Container Image Build & Health Verification ---
   build:
-    name: 2. Container Build & Image Security
+    name: 2. Container Build & Healthcheck
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -46,28 +72,49 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Multi-Stage Docker Image
+      - name: Build Backend Docker Image (Immutable SHA Tag)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./backend/Dockerfile
+          build-args: |
+            RELEASE_VERSION=ci-${{ github.sha }}
           push: false
           tags: cloud05-capstone:ci-${{ github.sha }}
           load: true
 
-      - name: Verify Container Healthcheck
+      - name: Verify Backend Container Healthcheck & Version
         run: |
-          docker run -d --name test-cloud05 -p 5005:5005 cloud05-capstone:ci-${{ github.sha }}
+          docker run -d --name test-cloud05 --read-only --tmpfs /tmp -p 5005:5005 cloud05-capstone:ci-${{ github.sha }}
           sleep 5
-          docker ps
           curl -f http://localhost:5005/health || exit 1
           curl -f http://localhost:5005/ready || exit 1
           curl -f http://localhost:5005/metrics || exit 1
+          curl -f http://localhost:5005/version || exit 1
           docker stop test-cloud05
 
-  # --- Stage 3: GitOps Manifest Validation ---
+      - name: Build Order-Service Docker Image (Immutable SHA Tag)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/order-service/Dockerfile
+          build-args: |
+            RELEASE_VERSION=ci-${{ github.sha }}
+          push: false
+          tags: cloud05-order-service:ci-${{ github.sha }}
+          load: true
+
+      - name: Verify Order-Service Healthcheck
+        run: |
+          docker run -d --name test-order-svc --read-only --tmpfs /tmp -p 5006:5006 cloud05-order-service:ci-${{ github.sha }}
+          sleep 4
+          curl -f http://localhost:5006/health || exit 1
+          curl -f http://localhost:5006/products || exit 1
+          docker stop test-order-svc
+
+  # --- Stage 3: Kubernetes & Argo Rollouts Manifest Validation ---
   gitops-validate:
-    name: 3. GitOps Manifests & Argo Rollouts Validation
+    name: 3. Kubernetes & Kustomize Manifest Validation
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -77,16 +124,11 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'latest'
+          version: 'v1.31.0'
 
       - name: Validate Kubernetes Manifests with Kustomize
         run: |
-          kubectl kustomize k8s/ > /dev/null
-          echo "Kustomize manifest syntax validated successfully"
-
-      - name: GitOps Dry-Run Update Verification
-        run: |
-          echo "Simulating GitOps image tag update in k8s/kustomization.yaml to ci-${{ github.sha }}"
-          cd k8s
-          kubectl kustomize . | grep -q "cloud05-capstone"
-          echo "GitOps reconciliation state verified for Argo CD consumption"
+          kubectl kustomize k8s/ > /tmp/rendered-k8s.yaml
+          grep -q "cloud05-service" /tmp/rendered-k8s.yaml
+          grep -q "order-service-health-analysis" /tmp/rendered-k8s.yaml
+          echo "Kustomize manifests rendered and validated (read-only validation; no remote push configured)"

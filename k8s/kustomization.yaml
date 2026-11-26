@@ -5,8 +5,8 @@ namespace: cloud05-app
 
 resources:
   - namespace.yaml
+  - rbac.yaml
   - configmap.yaml
-  - secrets.yaml
   - services.yaml
   - analysis-template.yaml
   - rollout.yaml

@@ -53,4 +53,13 @@ describe('Health, Readiness, Version, and Telemetry Endpoints', () => {
     expect(res.text).toContain('cloud05_rollout_traffic_percent');
     expect(res.text).toContain('cloud05_service_health_status');
   });
+
+  it('7. Security headers are set and unknown /api routes return JSON 404', async () => {
+    const res = await request(app).get('/api/does-not-exist');
+    expect(res.status).toBe(404);
+    expect(res.headers['x-powered-by']).toBeUndefined();
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.body.status).toBe('error');
+  });
 });

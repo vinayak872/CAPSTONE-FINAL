@@ -1,12 +1,16 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import { env } from '../config/environment.js';
 import { stateService } from './state.service.js';
 import { eventService } from './event.service.js';
 import { logger } from '../utils/logger.js';
 
 const execAsync = promisify(exec);
+const SA_TOKEN_PATH = '/var/run/secrets/kubernetes.io/serviceaccount/token';
+const SA_CA_PATH = '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt';
 
 class K8sService {
   constructor() {
@@ -27,10 +31,83 @@ class K8sService {
     this.lastObservedPhase = null;
     this.lastObservedStep = null;
     this.lastObservedAnalysisPhase = null;
+    this.hasSyncedRollout = false;
     this.isChecking = false;
 
     // Start background sync loop
     this.startBackgroundSync();
+  }
+
+  isInCluster() {
+    return Boolean(process.env.KUBERNETES_SERVICE_HOST && fs.existsSync(SA_TOKEN_PATH));
+  }
+
+  inClusterRequest(apiPath, { method = 'GET', body = null, contentType = 'application/json' } = {}) {
+    return new Promise((resolve, reject) => {
+      const token = fs.readFileSync(SA_TOKEN_PATH, 'utf-8').trim();
+      const ca = fs.existsSync(SA_CA_PATH) ? fs.readFileSync(SA_CA_PATH) : undefined;
+      const host = process.env.KUBERNETES_SERVICE_HOST;
+      const port = Number.parseInt(process.env.KUBERNETES_SERVICE_PORT || '443', 10);
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json'
+      };
+      if (body) {
+        headers['Content-Type'] = contentType;
+        headers['Content-Length'] = Buffer.byteLength(body);
+      }
+
+      const req = https.request({ host, port, path: apiPath, method, ca, headers, timeout: 3000 }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve(JSON.parse(data));
+            } catch {
+              resolve(data);
+            }
+          } else {
+            reject(new Error(`Kubernetes API ${method} ${apiPath} returned HTTP ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Kubernetes API timeout for ${apiPath}`));
+      });
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+    });
+  }
+
+  async checkPrometheusReady() {
+    if (this.isInCluster()) {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 2000);
+      try {
+        const res = await fetch('http://prometheus-server.monitoring.svc.cluster.local:9090/-/ready', {
+          signal: controller.signal
+        });
+        return res.ok;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+    const { stdout } = await execAsync(
+      'kubectl get pod -l app=prometheus-server -n monitoring -o json',
+      { timeout: 3000 }
+    );
+    const list = JSON.parse(stdout);
+    const pod = list.items?.[0];
+    return Boolean(
+      pod &&
+      pod.status?.phase === 'Running' &&
+      pod.status?.containerStatuses?.every((c) => c.ready)
+    );
   }
 
   startBackgroundSync() {
@@ -71,10 +148,22 @@ class K8sService {
 
   async triggerArgoCdSync() {
     try {
-      const { stdout } = await execAsync(
-        'kubectl patch application cloud05-progressive-delivery -n argocd --type merge -p \'{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}\'',
-        { timeout: 5000 }
-      );
+      const patchBody = JSON.stringify({
+        metadata: { annotations: { 'argocd.argoproj.io/refresh': 'hard' } }
+      });
+      let message = 'Argo CD hard refresh triggered';
+      if (this.isInCluster()) {
+        await this.inClusterRequest(
+          '/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/cloud05-progressive-delivery',
+          { method: 'PATCH', body: patchBody, contentType: 'application/merge-patch+json' }
+        );
+      } else {
+        const { stdout } = await execAsync(
+          'kubectl patch application cloud05-progressive-delivery -n argocd --type merge -p \'{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}\'',
+          { timeout: 5000 }
+        );
+        message = stdout.trim();
+      }
       eventService.addEvent(
         'Argo CD GitOps: Triggered hard refresh from GitHub',
         'info',
@@ -82,7 +171,7 @@ class K8sService {
       );
       // Immediately run check
       setTimeout(() => this.checkConnectivity().catch(() => {}), 500);
-      return { success: true, message: stdout.trim() };
+      return { success: true, message };
     } catch (err) {
       logger.error('Failed to trigger Argo CD sync', { error: err.message });
       return { success: false, error: err.message };
@@ -91,28 +180,47 @@ class K8sService {
 
   async checkConnectivity() {
     this.isChecking = true;
+    const inCluster = this.isInCluster();
     try {
       // 1. Kubernetes cluster check
       try {
-        const { stdout } = await execAsync('kubectl cluster-info --request-timeout=2s', { timeout: 3000 });
-        this.status.kubernetesConnected = true;
-        this.status.clusterInfo = stdout.split('\n')[0] || 'Connected';
+        if (inCluster) {
+          const versionInfo = await this.inClusterRequest('/version');
+          this.status.kubernetesConnected = true;
+          this.status.clusterInfo = `In-cluster Kubernetes API (${versionInfo.gitVersion || 'connected'})`;
+        } else {
+          const { stdout } = await execAsync('kubectl cluster-info --request-timeout=2s', { timeout: 3000 });
+          this.status.kubernetesConnected = true;
+          this.status.clusterInfo = stdout.split('\n')[0] || 'Connected';
+        }
       } catch {
         this.status.kubernetesConnected = false;
         this.status.clusterInfo = 'Cluster unreachable or Docker daemon not running';
       }
 
       if (!this.status.kubernetesConnected) {
+        this.status.argoRolloutsInstalled = false;
+        this.status.argoCdConnected = false;
+        this.status.prometheusConnected = false;
         this.status.clusterRollout = null;
+        this.status.orderServiceRollout = null;
         this.status.argoCdApp = null;
         this.status.latestAnalysisRun = null;
         this.status.lastChecked = new Date().toISOString();
         return this.getStatus();
       }
 
+      if (env.EXECUTION_MODE === 'kubernetes') {
+        stateService.executionMode = 'kubernetes';
+      }
+
       // 2. Argo Rollouts CRD check
       try {
-        await execAsync('kubectl get crd rollouts.argoproj.io --request-timeout=2s', { timeout: 3000 });
+        if (inCluster) {
+          await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/rollouts`);
+        } else {
+          await execAsync('kubectl get crd rollouts.argoproj.io --request-timeout=2s', { timeout: 3000 });
+        }
         this.status.argoRolloutsInstalled = true;
       } catch {
         this.status.argoRolloutsInstalled = false;
@@ -120,19 +228,16 @@ class K8sService {
 
       // 3. Prometheus Server check
       try {
-        await execAsync('kubectl get pod -l app=prometheus-server -n monitoring --request-timeout=2s', { timeout: 3000 });
-        this.status.prometheusConnected = true;
+        this.status.prometheusConnected = await this.checkPrometheusReady();
       } catch {
         this.status.prometheusConnected = false;
       }
 
       // 4. Query Argo CD Application
       try {
-        const { stdout: appOut } = await execAsync(
-          'kubectl get application cloud05-progressive-delivery -n argocd -o json',
-          { timeout: 4000 }
-        );
-        const app = JSON.parse(appOut);
+        const app = inCluster
+          ? await this.inClusterRequest('/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/cloud05-progressive-delivery')
+          : JSON.parse((await execAsync('kubectl get application cloud05-progressive-delivery -n argocd -o json', { timeout: 4000 })).stdout);
         const syncStatus = app.status?.sync?.status || 'Unknown';
         const healthStatus = app.status?.health?.status || 'Unknown';
         const revision = app.status?.sync?.revision || 'unknown';
@@ -171,11 +276,9 @@ class K8sService {
       // 5. Query Argo Rollout
       if (this.status.argoRolloutsInstalled) {
         try {
-          const { stdout: roOut } = await execAsync(
-            `kubectl get rollout ${env.ARGO_ROLLOUT_NAME} -n ${env.KUBERNETES_NAMESPACE} -o json`,
-            { timeout: 4000 }
-          );
-          const ro = JSON.parse(roOut);
+          const ro = inCluster
+            ? await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/rollouts/${env.ARGO_ROLLOUT_NAME}`)
+            : JSON.parse((await execAsync(`kubectl get rollout ${env.ARGO_ROLLOUT_NAME} -n ${env.KUBERNETES_NAMESPACE} -o json`, { timeout: 4000 })).stdout);
           const stepsCount = ro.spec?.strategy?.canary?.steps?.length || 9;
           const stepIndex = ro.status?.currentStepIndex != null ? ro.status.currentStepIndex : stepsCount;
           const currentStep = `${stepIndex}/${stepsCount}`;
@@ -267,11 +370,9 @@ class K8sService {
 
         // Query Order Microservice Rollout
         try {
-          const { stdout: osOut } = await execAsync(
-            `kubectl get rollout order-service -n ${env.KUBERNETES_NAMESPACE} -o json`,
-            { timeout: 3000 }
-          );
-          const os = JSON.parse(osOut);
+          const os = inCluster
+            ? await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/rollouts/order-service`)
+            : JSON.parse((await execAsync(`kubectl get rollout order-service -n ${env.KUBERNETES_NAMESPACE} -o json`, { timeout: 3000 })).stdout);
           const osStepsCount = os.spec?.strategy?.canary?.steps?.length || 9;
           const osStepIndex = os.status?.currentStepIndex != null ? os.status.currentStepIndex : osStepsCount;
           this.status.orderServiceRollout = {
@@ -291,12 +392,12 @@ class K8sService {
 
       // 6. Query AnalysisRuns
       try {
-        const { stdout: arOut } = await execAsync(
-          `kubectl get analysisrun -n ${env.KUBERNETES_NAMESPACE} -o json --sort-by=.metadata.creationTimestamp`,
-          { timeout: 4000 }
+        const arList = inCluster
+          ? await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/analysisruns`)
+          : JSON.parse((await execAsync(`kubectl get analysisrun -n ${env.KUBERNETES_NAMESPACE} -o json --sort-by=.metadata.creationTimestamp`, { timeout: 4000 })).stdout);
+        const runs = (arList.items || []).sort(
+          (a, b) => new Date(a.metadata?.creationTimestamp || 0) - new Date(b.metadata?.creationTimestamp || 0)
         );
-        const arList = JSON.parse(arOut);
-        const runs = arList.items || [];
         if (runs.length > 0) {
           const latest = runs[runs.length - 1];
           const metrics = (latest.status?.metricResults || []).map((m) => {
@@ -360,22 +461,25 @@ class K8sService {
       stateService.trafficSplit = { active: 100 - weight, candidate: weight };
       stateService.setApplicationHealth('HEALTHY');
     } else if (rollout.aborted || rollout.phase === 'Degraded') {
+      const stableVer = stateService.previousStableVersion || 'v1.0';
       stateService.deploymentStatus = 'ROLLED BACK';
       stateService.candidateVersion = 'NONE';
-      stateService.activeVersion = 'v1.0';
+      stateService.activeVersion = stableVer;
       stateService.trafficSplit = { active: 100, candidate: 0 };
       stateService.latestRollback = {
         failed_version: imageVersion,
-        restored_version: 'v1.0',
+        restored_version: stableVer,
         timestamp: new Date().toTimeString().split(' ')[0],
         reason: rollout.abort_reason || `AnalysisRun failed: Metric threshold breached in candidate ${imageVersion}`
       };
     } else if (rollout.phase === 'Healthy') {
-      if (stateService.deploymentStatus === 'DEPLOYING') {
+      if (stateService.deploymentStatus === 'DEPLOYING' || !this.hasSyncedRollout) {
         stateService.deploymentStatus = 'STABLE';
+        stateService.previousStableVersion = imageVersion;
         stateService.activeVersion = imageVersion;
         stateService.candidateVersion = 'NONE';
         stateService.trafficSplit = { active: 100, candidate: 0 };
+        this.hasSyncedRollout = true;
       }
     }
   }

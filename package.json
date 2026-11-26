@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node backend/src/server.js",
     "dev": "node --watch backend/src/server.js",
+    "lint": "npm --prefix backend run lint",
     "test": "npm --prefix backend test",
     "test:unit": "npm --prefix backend run test",
     "test:e2e": "node test_e2e.js"

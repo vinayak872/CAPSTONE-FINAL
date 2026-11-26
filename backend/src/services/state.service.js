@@ -8,8 +8,8 @@ class StateService {
 
   resetToBaseline() {
     this.projectName = 'CLOUD-05 Capstone';
-    this.activeVersion = 'v1.0';
-    this.previousStableVersion = 'v1.0';
+    this.activeVersion = env.RELEASE_VERSION;
+    this.previousStableVersion = env.RELEASE_VERSION;
     this.candidateVersion = 'NONE';
     this.deploymentStatus = 'STABLE'; // 'STABLE' | 'DEPLOYING' | 'ROLLED BACK'
     this.applicationHealth = 'HEALTHY'; // 'HEALTHY' | 'UNHEALTHY' | 'DEGRADED'
@@ -21,7 +21,7 @@ class StateService {
     this.clusterConnectivity = {
       kubernetes: false,
       argoRollouts: false,
-      prometheus: true
+      prometheus: false
     };
 
     // Update Prometheus gauges

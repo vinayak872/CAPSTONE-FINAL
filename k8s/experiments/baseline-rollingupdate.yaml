@@ -1,0 +1,84 @@
+# Standalone Baseline Kubernetes Deployment (RollingUpdate strategy) for EXP-01 / EXP-02.
+# Excluded from k8s/kustomization.yaml so Argo CD does not apply it automatically.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud05-rollingupdate-baseline
+  namespace: cloud05-app
+  labels:
+    app.kubernetes.io/name: cloud05-rollingupdate-baseline
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloud05-rollingupdate-baseline
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloud05-rollingupdate-baseline
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: app
+          image: cloud05-capstone:v1.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: RELEASE_VERSION
+              value: "v1.0"
+            - name: FAULT_MODE
+              value: "false"
+          ports:
+            - containerPort: 5005
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud05-rollingupdate-service
+  namespace: cloud05-app
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5005
+  selector:
+    app.kubernetes.io/name: cloud05-rollingupdate-baseline

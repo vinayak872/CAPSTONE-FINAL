@@ -31,7 +31,6 @@ const CONFIG_PATH = path.resolve(__dirname, 'backend', 'release_config.json');
 // ANSI Colors
 const GREEN = '\x1b[92m';
 const RED = '\x1b[91m';
-const YELLOW = '\x1b[93m';
 const CYAN = '\x1b[96m';
 const BOLD = '\x1b[1m';
 const RESET = '\x1b[0m';

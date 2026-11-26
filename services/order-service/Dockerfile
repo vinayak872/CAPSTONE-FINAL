@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 
 COPY services/order-service/package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev
 
 COPY services/order-service/src ./src
 
@@ -12,12 +12,15 @@ FROM node:20-alpine AS runner
 
 WORKDIR /usr/src/app
 
+ARG RELEASE_VERSION=v1.0
+
 ENV NODE_ENV=production
 ENV PORT=5006
 ENV HOST=0.0.0.0
+ENV RELEASE_VERSION=${RELEASE_VERSION}
 
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nodeapp
+  adduser --system --uid 1001 nodeapp
 
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/node_modules ./node_modules
 COPY --from=builder --chown=nodeapp:nodejs /usr/src/app/src ./src

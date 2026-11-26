@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import fs from 'node:fs';
-import path from 'node:path';
 import { app } from '../src/app.js';
 import { stateService } from '../src/services/state.service.js';
 import { env } from '../src/config/environment.js';
