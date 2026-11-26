@@ -20,9 +20,13 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+              (
+                sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+                or
+                (sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) * 0)
+              )
               /
-              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+              (sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) > 0)
             ) * 100
 
     - name: error-rate-threshold
@@ -36,9 +40,13 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+              (
+                sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+                or
+                (sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) * 0)
+              )
               /
-              sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+              (sum(rate(cloud05_http_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) > 0)
             ) * 100
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -63,9 +71,13 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+              (
+                sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code!~"5.."}[1m]))
+                or
+                (sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) * 0)
+              )
               /
-              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+              (sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) > 0)
             ) * 100
 
     - name: order-error-rate-threshold
@@ -79,7 +91,11 @@ spec:
           address: http://prometheus-server.monitoring.svc.cluster.local:9090
           query: |
             (
-              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+              (
+                sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}",status_code=~"5.."}[1m]))
+                or
+                (sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) * 0)
+              )
               /
-              sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m]))
+              (sum(rate(order_requests_total{rollouts_pod_template_hash="{{args.latest-hash}}"}[1m])) > 0)
             ) * 100
