@@ -826,6 +826,18 @@ body {
     color: #FFF;
 }
 
+/* Idle: pipeline stage exists but is not currently active or completed */
+.pipe-step.step-idle {
+    border-color: rgba(100, 116, 139, 0.3);
+    background: rgba(100, 116, 139, 0.05);
+    opacity: 0.65;
+}
+
+.pipe-step.step-idle .step-num {
+    background: #475569;
+    color: #94A3B8;
+}
+
 .step-num {
     width: 24px;
     height: 24px;

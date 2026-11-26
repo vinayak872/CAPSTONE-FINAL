@@ -70,20 +70,33 @@ async function fetchResearch() {
         const prog = data.progressive_aggregates || {};
         const trials = data.metadata?.num_trials || '--';
 
-        if (badge) badge.textContent = `${data.source || 'experiment_raw_data.json'} (${trials} trials)`;
-        if (blastEl) blastEl.textContent = `${prog.blast_radius_reduction_percent ?? '--'}%`;
-        if (blastSub) blastSub.textContent = `${prog.average_faulty_exposure_percent ?? '--'}% cumulative exposure (vs 100% direct cutover)`;
-        if (detectEl) detectEl.textContent = `${prog.average_detection_time_sec ?? '--'}s`;
-        if (mttrEl) mttrEl.textContent = `${prog.average_recovery_time_sec ?? '--'}s (${prog.mttr_speedup_factor ?? '--'}x)`;
-        if (mttrSub) mttrSub.textContent = `vs ${base.average_recovery_time_sec ?? '--'}s conventional baseline`;
-        if (errEl) errEl.textContent = `${prog.average_error_rate_percent ?? '--'}% vs ${base.average_error_rate_percent ?? '--'}%`;
+        // All metrics sourced directly from experiment_raw_data.json aggregates — no hardcoded values.
+        if (badge) {
+            badge.textContent = `Source: ${data.source || 'experiment_raw_data.json'} · ${trials} controlled trials`;
+            badge.title = data.metadata?.note || 'Empirical benchmark data from controlled trials';
+        }
+        if (blastEl) blastEl.textContent = prog.blast_radius_reduction_percent != null ? `${prog.blast_radius_reduction_percent}%` : 'N/A';
+        if (blastSub) blastSub.textContent = prog.average_faulty_exposure_percent != null
+            ? `${prog.average_faulty_exposure_percent}% cumulative faulty exposure (vs 100% direct cutover)`
+            : 'Data unavailable';
+        if (detectEl) detectEl.textContent = prog.average_detection_time_sec != null ? `${prog.average_detection_time_sec}s` : 'N/A';
+        if (mttrEl) mttrEl.textContent = prog.average_recovery_time_sec != null
+            ? `${prog.average_recovery_time_sec}s (${prog.mttr_speedup_factor ?? 'N/A'}x faster)`
+            : 'N/A';
+        if (mttrSub) mttrSub.textContent = base.average_recovery_time_sec != null
+            ? `vs ${base.average_recovery_time_sec}s conventional baseline (manual recovery)`
+            : 'Baseline data unavailable';
+        if (errEl) errEl.textContent = (prog.average_error_rate_percent != null && base.average_error_rate_percent != null)
+            ? `${prog.average_error_rate_percent}% (progressive) vs ${base.average_error_rate_percent}% (baseline)`
+            : 'N/A';
     } catch {
-        if (badge) badge.textContent = 'Unavailable';
-        if (blastEl) blastEl.textContent = 'UNAVAILABLE';
-        if (blastSub) blastSub.textContent = 'Failed to load /api/research';
-        if (detectEl) detectEl.textContent = '--';
-        if (mttrEl) mttrEl.textContent = '--';
-        if (errEl) errEl.textContent = '--';
+        if (badge) badge.textContent = 'Research data unavailable — check /api/research';
+        if (blastEl) blastEl.textContent = 'N/A';
+        if (blastSub) blastSub.textContent = 'Failed to load experiment_raw_data.json via /api/research';
+        if (detectEl) detectEl.textContent = 'N/A';
+        if (mttrEl) mttrEl.textContent = 'N/A';
+        if (mttrSub) mttrSub.textContent = '';
+        if (errEl) errEl.textContent = 'N/A';
     }
 }
 
@@ -110,9 +123,25 @@ async function fetchConfig() {
 }
 
 function updateDashboardUI(data) {
-    // Active Version
+    // Active Version — show state version and, when K8s is connected, the actual cluster image
     const activeVersionEl = document.getElementById('val-active-version');
-    if (activeVersionEl) activeVersionEl.textContent = data.active_version;
+    if (activeVersionEl) {
+        const clusterRo = data.cluster_connectivity?.cluster_rollout;
+        if (clusterRo && clusterRo.images) {
+            // Extract tag from image name e.g. "cloud05-capstone:v1.0.1" -> "v1.0.1"
+            const clusterTag = clusterRo.images.includes(':') ? clusterRo.images.split(':')[1] : clusterRo.images;
+            if (clusterTag !== data.active_version) {
+                // State version and cluster image differ: show both and explain
+                activeVersionEl.textContent = `${data.active_version} (cluster: ${clusterTag})`;
+                activeVersionEl.title = `Simulation state shows ${data.active_version}; Kubernetes Rollout is running image ${clusterRo.images} at step ${clusterRo.current_step}`;
+            } else {
+                activeVersionEl.textContent = data.active_version;
+                activeVersionEl.title = `Kubernetes image: ${clusterRo.images}`;
+            }
+        } else {
+            activeVersionEl.textContent = data.active_version;
+        }
+    }
 
     // Candidate Version
     const candidateVersionEl = document.getElementById('val-candidate-version');
@@ -181,7 +210,9 @@ function updateDashboardUI(data) {
 
     const trafficSplitLabel = document.getElementById('traffic-split-label');
     if (trafficSplitLabel) {
-        trafficSplitLabel.textContent = `Active ${activePercent}% | Candidate ${candidatePercent}% (Configured)`;
+        // Canary traffic is replica-proportional (no service-mesh weighted routing installed).
+        // Percentages reflect the configured canary weight / replica ratio, not measured per-request routing.
+        trafficSplitLabel.textContent = `Active ${activePercent}% | Candidate ${candidatePercent}% (Replica-Based — no service mesh)`;
     }
 
     // Update Cluster Connectivity & Execution Mode Pills
@@ -262,9 +293,22 @@ function updateConnectivityPills(data) {
 
     if (pillArgo && data.cluster_connectivity) {
         const k8sOnline = data.cluster_connectivity.kubernetes;
-        const argoOnline = data.cluster_connectivity.argoRollouts;
-        pillArgo.textContent = !k8sOnline ? 'Argo Rollouts: Unknown' : (argoOnline ? 'Argo Rollouts: Active' : 'Argo Rollouts: Unavailable');
-        pillArgo.className = argoOnline ? 'pill-active-tag' : 'pill-offline-tag';
+        // Use cluster_rollout existence as the authoritative Argo Rollouts indicator.
+        // argo_rollouts_connected already accounts for both CRD presence AND live rollout data.
+        const argoRolloutsActive = data.cluster_connectivity.argoRollouts;
+        const hasLiveRollout = data.cluster_connectivity.cluster_rollout != null;
+        const argoEffective = argoRolloutsActive || hasLiveRollout;
+        if (!k8sOnline) {
+            pillArgo.textContent = 'Argo Rollouts: Unknown';
+            pillArgo.className = 'pill-offline-tag';
+        } else if (argoEffective) {
+            const phase = data.cluster_connectivity.cluster_rollout?.phase || 'Active';
+            pillArgo.textContent = `Argo Rollouts: ${phase}`;
+            pillArgo.className = 'pill-active-tag';
+        } else {
+            pillArgo.textContent = 'Argo Rollouts: Unavailable';
+            pillArgo.className = 'pill-offline-tag';
+        }
     }
 
     if (pillArgocd && data.cluster_connectivity) {
@@ -513,21 +557,21 @@ function updatePipelineVisualizer(data) {
 
     if (data.deployment_status === 'DEPLOYING') {
         const candidateSplit = data.traffic_split.candidate;
-        overall.textContent = `Deploying Candidate ${data.candidate_version} (${candidateSplit}% Canary)`;
+        overall.textContent = `Deploying Candidate ${data.candidate_version} (${candidateSplit}% Canary Weight)`;
         overall.className = 'badge badge-warning font-mono';
 
         step5.className = 'pipe-step step-active';
-        if (canaryMeta) canaryMeta.textContent = `Weight: ${candidateSplit}%`;
+        if (canaryMeta) canaryMeta.textContent = `Weight: ${candidateSplit}% (replica-based)`;
 
         if (candidateSplit >= 50) {
             step6.className = 'pipe-step step-active';
             if (analysisMeta) analysisMeta.textContent = 'Probes Evaluating...';
         } else {
-            step6.className = 'pipe-step';
-            if (analysisMeta) analysisMeta.textContent = 'Awaiting Exposure';
+            step6.className = 'pipe-step step-idle';
+            if (analysisMeta) analysisMeta.textContent = 'Awaiting Canary Exposure';
         }
 
-        step7.className = 'pipe-step';
+        step7.className = 'pipe-step step-idle';
         if (finalTitle) finalTitle.textContent = 'Decision Gated';
         if (finalMeta) finalMeta.textContent = 'Analyzing...';
     } else if (data.deployment_status === 'ROLLED BACK') {
@@ -538,20 +582,20 @@ function updatePipelineVisualizer(data) {
         if (canaryMeta) canaryMeta.textContent = 'Canary Aborted';
 
         step6.className = 'pipe-step step-failed';
-        if (analysisMeta) analysisMeta.textContent = 'Probe Breached 503';
+        if (analysisMeta) analysisMeta.textContent = 'Probe Breached Threshold';
 
         step7.className = 'pipe-step step-failed';
         if (finalTitle) finalTitle.textContent = 'Rollback Triggered';
         if (finalMeta) finalMeta.textContent = `Restored ${data.active_version}`;
     } else {
-        // STABLE
+        // STABLE — no active canary. Steps 5+6 are idle (not completed), step 7 is the converged state.
         overall.textContent = `Pipeline Converged (Active: ${data.active_version})`;
         overall.className = 'badge badge-success font-mono';
 
-        step5.className = 'pipe-step';
+        step5.className = 'pipe-step step-idle';
         if (canaryMeta) canaryMeta.textContent = 'No active canary';
 
-        step6.className = 'pipe-step';
+        step6.className = 'pipe-step step-idle';
         if (analysisMeta) analysisMeta.textContent = 'Probes Idle';
 
         step7.className = 'pipe-step step-complete';

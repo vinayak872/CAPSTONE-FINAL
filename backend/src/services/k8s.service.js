@@ -485,10 +485,17 @@ class K8sService {
   }
 
   getStatus() {
+    // argo_rollouts_connected: true when the CRD exists AND we have live rollout data.
+    // Using cluster_rollout existence as the authoritative signal avoids a split where
+    // the CRD check passes but we have no actual rollout data (and vice-versa).
+    const argoRolloutsActive =
+      this.status.argoRolloutsInstalled && this.status.clusterRollout != null;
+
     return {
       execution_mode: this.status.kubernetesConnected ? 'kubernetes' : 'simulation',
       kubernetes_connected: this.status.kubernetesConnected,
-      argo_rollouts_connected: this.status.argoRolloutsInstalled,
+      argo_rollouts_connected: argoRolloutsActive,
+      argo_rollouts_crd_installed: this.status.argoRolloutsInstalled,
       argocd_connected: this.status.argoCdConnected,
       prometheus_connected: this.status.prometheusConnected,
       cluster_info: this.status.clusterInfo,
