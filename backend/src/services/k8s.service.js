@@ -5,6 +5,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { env } from '../config/environment.js';
 import { stateService } from './state.service.js';
+import { rolloutService } from './rollout.service.js';
 import { eventService } from './event.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -522,6 +523,7 @@ class K8sService {
 
   syncWithStateService(rollout) {
     if (!rollout || process.env.NODE_ENV === 'test') return;
+    if (rolloutService.isSimulating()) return;
 
     const imageName = rollout.images || 'cloud05-capstone:v1.0';
     const imageVersion = imageName.split(':')[1] || 'v1.0';
@@ -545,16 +547,12 @@ class K8sService {
         reason: rollout.abort_reason || `AnalysisRun failed: Metric threshold breached in candidate ${imageVersion}`
       };
     } else if (rollout.phase === 'Healthy') {
-      if (!stateService.isDeploying()) {
-        stateService.deploymentStatus = 'STABLE';
-        stateService.previousStableVersion = imageVersion;
-        if (!stateService.lastConfigDeployment) {
-          stateService.activeVersion = imageVersion;
-        }
-        stateService.candidateVersion = 'NONE';
-        stateService.trafficSplit = { active: 100, candidate: 0 };
-        this.hasSyncedRollout = true;
-      }
+      stateService.deploymentStatus = 'STABLE';
+      stateService.previousStableVersion = imageVersion;
+      stateService.activeVersion = imageVersion;
+      stateService.candidateVersion = 'NONE';
+      stateService.trafficSplit = { active: 100, candidate: 0 };
+      this.hasSyncedRollout = true;
     }
   }
 

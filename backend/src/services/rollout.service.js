@@ -119,12 +119,18 @@ class RolloutService {
         'danger',
         'Rollout process encountered an internal error'
       );
+    }).finally(() => {
+      this.activeRolloutPromise = null;
     });
 
     return {
       success: true,
       status: 200
     };
+  }
+
+  isSimulating() {
+    return this.activeRolloutPromise != null;
   }
 }
 
