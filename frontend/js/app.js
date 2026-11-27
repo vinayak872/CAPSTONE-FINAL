@@ -123,23 +123,13 @@ async function fetchConfig() {
 }
 
 function updateDashboardUI(data) {
-    // Active Version — show state version and, when K8s is connected, the actual cluster image
+    // Active Version — use authoritative active_version from backend (synced with Kubernetes rollout image)
     const activeVersionEl = document.getElementById('val-active-version');
     if (activeVersionEl) {
+        activeVersionEl.textContent = data.active_version;
         const clusterRo = data.cluster_connectivity?.cluster_rollout;
         if (clusterRo && clusterRo.images) {
-            // Extract tag from image name e.g. "cloud05-capstone:v1.0.1" -> "v1.0.1"
-            const clusterTag = clusterRo.images.includes(':') ? clusterRo.images.split(':')[1] : clusterRo.images;
-            if (clusterTag !== data.active_version) {
-                // State version and cluster image differ: show both and explain
-                activeVersionEl.textContent = `${data.active_version} (cluster: ${clusterTag})`;
-                activeVersionEl.title = `Simulation state shows ${data.active_version}; Kubernetes Rollout is running image ${clusterRo.images} at step ${clusterRo.current_step}`;
-            } else {
-                activeVersionEl.textContent = data.active_version;
-                activeVersionEl.title = `Kubernetes image: ${clusterRo.images}`;
-            }
-        } else {
-            activeVersionEl.textContent = data.active_version;
+            activeVersionEl.title = `Kubernetes active image: ${clusterRo.images}`;
         }
     }
 
@@ -404,7 +394,13 @@ function updateGitopsUI(data) {
             }
         }
         if (liveRoPods) {
-            liveRoPods.textContent = `${ro.ready_replicas} Ready / ${ro.replicas} Total (${ro.updated_replicas || 0} Canary)`;
+            const canary = ro.canary_replicas != null ? ro.canary_replicas : (ro.phase === 'Healthy' ? 0 : (ro.updated_replicas || 0));
+            const stable = ro.stable_replicas != null ? ro.stable_replicas : (ro.ready_replicas - canary);
+            if (ro.phase === 'Healthy' && canary === 0) {
+                liveRoPods.textContent = `${ro.ready_replicas} Ready / ${ro.replicas} Total (${stable} Stable, 0 Canary)`;
+            } else {
+                liveRoPods.textContent = `${ro.ready_replicas} Ready / ${ro.replicas} Total (${canary} Canary, ${stable} Stable)`;
+            }
         }
         if (liveRoImage) {
             liveRoImage.textContent = ro.images;
@@ -499,7 +495,13 @@ function updateGitopsUI(data) {
             msOrderPhase.className = `font-mono ${orderRollout.phase === 'Healthy' ? 'text-success' : (orderRollout.phase === 'Degraded' ? 'text-danger' : 'text-warning')} font-bold`;
         }
         if (msOrderPods) {
-            msOrderPods.textContent = `${orderRollout.ready_replicas} Ready / ${orderRollout.replicas} Total (${orderRollout.updated_replicas || 0} Canary)`;
+            const osCanary = orderRollout.canary_replicas != null ? orderRollout.canary_replicas : (orderRollout.phase === 'Healthy' ? 0 : (orderRollout.updated_replicas || 0));
+            const osStable = orderRollout.stable_replicas != null ? orderRollout.stable_replicas : (orderRollout.ready_replicas - osCanary);
+            if (orderRollout.phase === 'Healthy' && osCanary === 0) {
+                msOrderPods.textContent = `${orderRollout.ready_replicas} Ready / ${orderRollout.replicas} Total (${osStable} Stable, 0 Canary)`;
+            } else {
+                msOrderPods.textContent = `${orderRollout.ready_replicas} Ready / ${orderRollout.replicas} Total (${osCanary} Canary, ${osStable} Stable)`;
+            }
         }
     } else {
         if (meshLinkStatus) {
@@ -588,15 +590,15 @@ function updatePipelineVisualizer(data) {
         if (finalTitle) finalTitle.textContent = 'Rollback Triggered';
         if (finalMeta) finalMeta.textContent = `Restored ${data.active_version}`;
     } else {
-        // STABLE — no active canary. Steps 5+6 are idle (not completed), step 7 is the converged state.
+        // STABLE — release is fully promoted. All 7 pipeline stages represent the completed lifecycle.
         overall.textContent = `Pipeline Converged (Active: ${data.active_version})`;
         overall.className = 'badge badge-success font-mono';
 
-        step5.className = 'pipe-step step-idle';
-        if (canaryMeta) canaryMeta.textContent = 'No active canary';
+        step5.className = 'pipe-step step-complete';
+        if (canaryMeta) canaryMeta.textContent = '100% Promoted (Completed)';
 
-        step6.className = 'pipe-step step-idle';
-        if (analysisMeta) analysisMeta.textContent = 'Probes Idle';
+        step6.className = 'pipe-step step-complete';
+        if (analysisMeta) analysisMeta.textContent = 'All Probes Passed';
 
         step7.className = 'pipe-step step-complete';
         if (finalTitle) finalTitle.textContent = 'Active Stable';

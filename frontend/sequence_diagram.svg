@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" width="100%" height="100%" style="background:#0f172a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <defs>
+    <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="seq-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+    </marker>
+    <marker id="seq-arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="35" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">Canary Health Gating &amp; Circuit Breaker Sequence</text>
+  <text x="500" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">Real-Time Prometheus Observation vs. Automated Rollback Trigger</text>
+
+  <!-- Actors / Lifelines -->
+  <!-- 1. Client -->
+  <rect x="50" y="80" width="120" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="110" y="105" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="600">Client / Users</text>
+  <line x1="110" y1="120" x2="110" y2="640" stroke="#334155" stroke-dasharray="4" stroke-width="1.5"/>
+
+  <!-- 2. Gateway -->
+  <rect x="230" y="80" width="130" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="295" y="105" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="600">API Gateway</text>
+  <line x1="295" y1="120" x2="295" y2="640" stroke="#334155" stroke-dasharray="4" stroke-width="1.5"/>
+
+  <!-- 3. Canary Pod -->
+  <rect x="420" y="80" width="130" height="40" rx="6" fill="#1e293b" stroke="#eab308" stroke-width="1.5"/>
+  <text x="485" y="105" text-anchor="middle" fill="#eab308" font-size="12" font-weight="600">Canary Pod (v2.0)</text>
+  <line x1="485" y1="120" x2="485" y2="640" stroke="#334155" stroke-dasharray="4" stroke-width="1.5"/>
+
+  <!-- 4. Prometheus -->
+  <rect x="610" y="80" width="130" height="40" rx="6" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="675" y="105" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="600">Prometheus Server</text>
+  <line x1="675" y1="120" x2="675" y2="640" stroke="#334155" stroke-dasharray="4" stroke-width="1.5"/>
+
+  <!-- 5. Rollouts Controller -->
+  <rect x="790" y="80" width="150" height="40" rx="6" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="865" y="105" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="600">Argo Rollouts &amp; Analysis</text>
+  <line x1="865" y1="120" x2="865" y2="640" stroke="#334155" stroke-dasharray="4" stroke-width="1.5"/>
+
+  <!-- Message 1: Client -> Gateway -->
+  <line x1="110" y1="150" x2="290" y2="150" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#seq-arrow)"/>
+  <text x="200" y="142" text-anchor="middle" fill="#f8fafc" font-size="11">1. User HTTP Requests</text>
+
+  <!-- Message 2: Gateway -> Canary (10% Traffic) -->
+  <line x1="295" y1="180" x2="480" y2="180" stroke="#eab308" stroke-width="1.5" marker-end="url(#seq-arrow)"/>
+  <text x="385" y="172" text-anchor="middle" fill="#eab308" font-size="11">2. Route 10% Canary Traffic</text>
+
+  <!-- Message 3: Prometheus Scrapes Canary -->
+  <line x1="675" y1="210" x2="490" y2="210" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3" marker-end="url(#seq-arrow)"/>
+  <text x="580" y="202" text-anchor="middle" fill="#ef4444" font-size="11">3. Scrape /metrics (every 5s)</text>
+
+  <!-- Message 4: Analysis Queries Prometheus -->
+  <line x1="865" y1="245" x2="680" y2="245" stroke="#a855f7" stroke-width="1.5" marker-end="url(#seq-arrow)"/>
+  <text x="770" y="237" text-anchor="middle" fill="#a855f7" font-size="11">4. PromQL: Evaluate Error Rate</text>
+
+  <!-- SCENARIO BOX A: Normal Healthy Promotion -->
+  <rect x="40" y="275" width="910" height="150" rx="6" fill="rgba(52, 211, 153, 0.05)" stroke="#34d399" stroke-dasharray="4"/>
+  <text x="55" y="295" fill="#34d399" font-size="12" font-weight="700">SCENARIO A: HEALTHY RELEASE PROMOTION (Error Rate &le; 5%)</text>
+
+  <line x1="675" y1="325" x2="860" y2="325" stroke="#34d399" stroke-width="1.5" marker-end="url(#seq-arrow-green)"/>
+  <text x="770" y="318" text-anchor="middle" fill="#34d399" font-size="11">PromQL Result: 0.0% Error (PASS)</text>
+
+  <line x1="865" y1="365" x2="300" y2="365" stroke="#34d399" stroke-width="1.5" marker-end="url(#seq-arrow-green)"/>
+  <text x="580" y="357" text-anchor="middle" fill="#34d399" font-size="11">Advance Canary Step (25% &rarr; 50% &rarr; 100% Active Stable)</text>
+
+  <text x="500" y="405" text-anchor="middle" fill="#34d399" font-size="12" font-weight="600">Outcome: All metric criteria satisfied. Release safely promoted to 100% stable.</text>
+
+  <!-- SCENARIO BOX B: Faulty Release & Circuit Breaker -->
+  <rect x="40" y="445" width="910" height="180" rx="6" fill="rgba(248, 113, 113, 0.05)" stroke="#f87171" stroke-dasharray="4"/>
+  <text x="55" y="465" fill="#f87171" font-size="12" font-weight="700">SCENARIO B: FAULTY CANDIDATE &amp; AUTOMATIC ROLLBACK (Error Rate > 5%)</text>
+
+  <line x1="675" y1="495" x2="860" y2="495" stroke="#f87171" stroke-width="1.5" marker-end="url(#seq-arrow-red)"/>
+  <text x="770" y="488" text-anchor="middle" fill="#f87171" font-size="11">PromQL Result: 18.2% Error (FAIL - Breach Detected at 4.01s)</text>
+
+  <line x1="865" y1="535" x2="490" y2="535" stroke="#f87171" stroke-width="2" marker-end="url(#seq-arrow-red)"/>
+  <text x="675" y="527" text-anchor="middle" fill="#f87171" font-size="11">Abort Rollout: Terminate Canary Pods (Scale to 0)</text>
+
+  <line x1="865" y1="570" x2="300" y2="570" stroke="#34d399" stroke-width="2" marker-end="url(#seq-arrow-green)"/>
+  <text x="580" y="562" text-anchor="middle" fill="#34d399" font-size="11">Circuit Breaker Restores 100% Traffic to Stable Release (MTTR = 0.75s)</text>
+
+  <text x="500" y="608" text-anchor="middle" fill="#f87171" font-size="12" font-weight="600">Outcome: Automated mitigation prevents outage. 65.5% cumulative blast radius reduction.</text>
+</svg>

@@ -350,6 +350,14 @@ class K8sService {
 
           const containerImage = ro.spec?.template?.spec?.containers?.[0]?.image || 'cloud05-capstone:v1.0';
 
+          // Accurately classify stable vs canary replicas using Rollout status and phase
+          const totalReplicas = ro.status?.replicas || 0;
+          const readyReplicas = ro.status?.readyReplicas || 0;
+          const updatedReplicas = ro.status?.updatedReplicas || 0;
+          const isFullyStable = (phase === 'Healthy' && (stepIndex >= stepsCount || ro.status?.stableRS === ro.status?.currentPodHash));
+          const canaryReplicas = isFullyStable ? 0 : Math.max(0, updatedReplicas);
+          const stableReplicas = isFullyStable ? readyReplicas : Math.max(0, readyReplicas - canaryReplicas);
+
           this.status.clusterRollout = {
             name: ro.metadata?.name,
             phase,
@@ -357,9 +365,13 @@ class K8sService {
             total_steps: stepsCount,
             current_step: currentStep,
             current_weight: currentWeight,
-            replicas: ro.status?.replicas || 4,
-            ready_replicas: ro.status?.readyReplicas || 4,
-            updated_replicas: ro.status?.updatedReplicas || 0,
+            replicas: totalReplicas,
+            ready_replicas: readyReplicas,
+            updated_replicas: updatedReplicas,
+            stable_replicas: stableReplicas,
+            canary_replicas: canaryReplicas,
+            stable_rs: ro.status?.stableRS,
+            current_pod_hash: ro.status?.currentPodHash,
             images: containerImage,
             aborted: isAborted,
             abort_reason: abortReason
@@ -415,13 +427,25 @@ class K8sService {
             : JSON.parse((await execAsync(`kubectl get rollout order-service -n ${env.KUBERNETES_NAMESPACE} -o json`, { timeout: 3000 })).stdout);
           const osStepsCount = os.spec?.strategy?.canary?.steps?.length || 9;
           const osStepIndex = os.status?.currentStepIndex != null ? os.status.currentStepIndex : osStepsCount;
+          const osPhase = os.status?.phase || 'Healthy';
+          const osTotalReplicas = os.status?.replicas || 0;
+          const osReadyReplicas = os.status?.readyReplicas || 0;
+          const osUpdatedReplicas = os.status?.updatedReplicas || 0;
+          const osIsFullyStable = (osPhase === 'Healthy' && (osStepIndex >= osStepsCount || os.status?.stableRS === os.status?.currentPodHash));
+          const osCanaryReplicas = osIsFullyStable ? 0 : Math.max(0, osUpdatedReplicas);
+          const osStableReplicas = osIsFullyStable ? osReadyReplicas : Math.max(0, osReadyReplicas - osCanaryReplicas);
+
           this.status.orderServiceRollout = {
             name: 'order-service',
-            phase: os.status?.phase || 'Healthy',
+            phase: osPhase,
             current_step: `${osStepIndex}/${osStepsCount}`,
-            replicas: os.status?.replicas || 3,
-            ready_replicas: os.status?.readyReplicas || 3,
-            updated_replicas: os.status?.updatedReplicas || 0,
+            replicas: osTotalReplicas,
+            ready_replicas: osReadyReplicas,
+            updated_replicas: osUpdatedReplicas,
+            stable_replicas: osStableReplicas,
+            canary_replicas: osCanaryReplicas,
+            stable_rs: os.status?.stableRS,
+            current_pod_hash: os.status?.currentPodHash,
             images: os.spec?.template?.spec?.containers?.[0]?.image || 'cloud05-order-service:v1.0',
             aborted: os.status?.abort === true
           };
@@ -435,7 +459,15 @@ class K8sService {
         const arList = inCluster
           ? await this.inClusterRequest(`/apis/argoproj.io/v1alpha1/namespaces/${env.KUBERNETES_NAMESPACE}/analysisruns`)
           : JSON.parse((await execAsync(`kubectl get analysisrun -n ${env.KUBERNETES_NAMESPACE} -o json --sort-by=.metadata.creationTimestamp`, { timeout: 4000 })).stdout);
-        const runs = (arList.items || []).sort(
+        // Focus on AnalysisRuns associated with cloud05-service (primary rollout)
+        const allItems = arList.items || [];
+        const cloud05Runs = allItems.filter(item => {
+          const owner = item.metadata?.ownerReferences?.[0]?.name;
+          const name = item.metadata?.name || '';
+          return owner === env.ARGO_ROLLOUT_NAME || name.startsWith(env.ARGO_ROLLOUT_NAME);
+        });
+        const targetRuns = cloud05Runs.length > 0 ? cloud05Runs : allItems;
+        const runs = targetRuns.sort(
           (a, b) => new Date(a.metadata?.creationTimestamp || 0) - new Date(b.metadata?.creationTimestamp || 0)
         );
         if (runs.length > 0) {
@@ -489,7 +521,7 @@ class K8sService {
   }
 
   syncWithStateService(rollout) {
-    if (!rollout || process.env.NODE_ENV === 'test' || env.EXECUTION_MODE !== 'kubernetes') return;
+    if (!rollout || process.env.NODE_ENV === 'test') return;
 
     const imageName = rollout.images || 'cloud05-capstone:v1.0';
     const imageVersion = imageName.split(':')[1] || 'v1.0';
@@ -513,10 +545,12 @@ class K8sService {
         reason: rollout.abort_reason || `AnalysisRun failed: Metric threshold breached in candidate ${imageVersion}`
       };
     } else if (rollout.phase === 'Healthy') {
-      if (stateService.deploymentStatus === 'DEPLOYING' || !this.hasSyncedRollout) {
+      if (!stateService.isDeploying()) {
         stateService.deploymentStatus = 'STABLE';
         stateService.previousStableVersion = imageVersion;
-        stateService.activeVersion = imageVersion;
+        if (!stateService.lastConfigDeployment) {
+          stateService.activeVersion = imageVersion;
+        }
         stateService.candidateVersion = 'NONE';
         stateService.trafficSplit = { active: 100, candidate: 0 };
         this.hasSyncedRollout = true;

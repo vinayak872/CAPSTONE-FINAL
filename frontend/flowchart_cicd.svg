@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 800" width="100%" height="100%" style="background:#0f172a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <defs>
+    <!-- Arrowhead markers -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+    </marker>
+    <!-- Card drop shadows -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Title & Subtitle -->
+  <text x="550" y="38" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700">CLOUD-05: GitOps Progressive Delivery &amp; Automated Rollback Flow</text>
+  <text x="550" y="62" text-anchor="middle" fill="#94a3b8" font-size="13">End-to-End Architectural Lifecycle &amp; Telemetry Feedback Gate</text>
+
+  <!-- ROW 1: Stage 1 (Dev) & Stage 2 (CI) -->
+  <!-- Box: Developer Commit -->
+  <g transform="translate(60, 95)" filter="url(#shadow)">
+    <rect width="210" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <rect width="210" height="6" rx="3" fill="#38bdf8"/>
+    <text x="105" y="32" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 1: DESIRED STATE</text>
+    <text x="105" y="52" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">Developer Git Push</text>
+    <text x="105" y="68" text-anchor="middle" fill="#94a3b8" font-size="11">GitHub Repository (main)</text>
+  </g>
+
+  <!-- Connection: Dev -> CI -->
+  <path d="M 270 132 L 350 132" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Box: CI Pipeline (GitHub Actions) -->
+  <g transform="translate(360, 85)" filter="url(#shadow)">
+    <rect width="360" height="95" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <rect width="360" height="6" rx="3" fill="#818cf8"/>
+    <text x="180" y="28" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 2: CONTINUOUS INTEGRATION (GITHUB ACTIONS)</text>
+    <rect x="20" y="40" width="95" height="42" rx="4" fill="#0f172a" stroke="#334155"/>
+    <text x="67" y="58" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">1. ESLint</text>
+    <text x="67" y="73" text-anchor="middle" fill="#34d399" font-size="10">0 Errors</text>
+
+    <rect x="130" y="40" width="105" height="42" rx="4" fill="#0f172a" stroke="#334155"/>
+    <text x="182" y="58" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">2. Vitest &amp; E2E</text>
+    <text x="182" y="73" text-anchor="middle" fill="#34d399" font-size="10">47/47 Passed</text>
+
+    <rect x="250" y="40" width="95" height="42" rx="4" fill="#0f172a" stroke="#334155"/>
+    <text x="297" y="58" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">3. Docker Build</text>
+    <text x="297" y="73" text-anchor="middle" fill="#38bdf8" font-size="10">v1.0.1 Image</text>
+  </g>
+
+  <!-- Connection: CI -> GitOps -->
+  <path d="M 720 132 L 800 132" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Box: Argo CD (Phase 3) -->
+  <g transform="translate(810, 95)" filter="url(#shadow)">
+    <rect width="230" height="75" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+    <rect width="230" height="6" rx="3" fill="#f97316"/>
+    <text x="115" y="32" text-anchor="middle" fill="#f97316" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 3: GITOPS DELIVERY</text>
+    <text x="115" y="52" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">Argo CD Reconciler</text>
+    <text x="115" y="68" text-anchor="middle" fill="#34d399" font-size="11">Synced &amp; Healthy (0d4fd70)</text>
+  </g>
+
+  <!-- Connection: Argo CD -> Argo Rollouts (Downwards) -->
+  <path d="M 925 170 L 925 245 L 850 245" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 2: Argo Rollouts Controller & Canary Steps -->
+  <g transform="translate(560, 210)" filter="url(#shadow)">
+    <rect width="280" height="85" rx="8" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+    <rect width="280" height="6" rx="3" fill="#a855f7"/>
+    <text x="140" y="32" text-anchor="middle" fill="#a855f7" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 4: PROGRESSIVE DELIVERY</text>
+    <text x="140" y="54" text-anchor="middle" fill="#f8fafc" font-size="15" font-weight="600">Argo Rollouts Controller</text>
+    <text x="140" y="72" text-anchor="middle" fill="#94a3b8" font-size="12">Custom Resource: cloud05-service</text>
+  </g>
+
+  <!-- Connection: Rollouts -> Step 1 -->
+  <path d="M 560 252 L 440 252" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Box: Canary Step 1 (10% Traffic) -->
+  <g transform="translate(200, 215)" filter="url(#shadow)">
+    <rect width="230" height="75" rx="8" fill="#1e293b" stroke="#eab308" stroke-width="1.5"/>
+    <rect width="230" height="6" rx="3" fill="#eab308"/>
+    <text x="115" y="32" text-anchor="middle" fill="#eab308" font-size="11" font-weight="700" letter-spacing="0.05em">CANARY STEP 1</text>
+    <text x="115" y="52" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">10% Canary Weight</text>
+    <text x="115" y="68" text-anchor="middle" fill="#94a3b8" font-size="11">1 Canary Pod / 3 Stable Pods</text>
+  </g>
+
+  <!-- Connection: Step 1 -> Prometheus (Downwards) -->
+  <path d="M 315 290 L 315 365" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 3: Telemetry Gating (Prometheus & AnalysisRun) -->
+  <!-- Box: Prometheus Scraper -->
+  <g transform="translate(200, 375)" filter="url(#shadow)">
+    <rect width="230" height="85" rx="8" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+    <rect width="230" height="6" rx="3" fill="#ef4444"/>
+    <text x="115" y="30" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 5: REAL-TIME TELEMETRY</text>
+    <text x="115" y="52" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">Prometheus Server</text>
+    <text x="115" y="70" text-anchor="middle" fill="#94a3b8" font-size="11">Scrapes /metrics every 5s</text>
+  </g>
+
+  <!-- Connection: Prometheus -> AnalysisRun -->
+  <path d="M 430 417 L 510 417" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Box: AnalysisRun Gate -->
+  <g transform="translate(520, 365)" filter="url(#shadow)">
+    <rect width="240" height="105" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="120" y="28" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.05em">ANALYSISRUN DECISION GATE</text>
+    <text x="120" y="50" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="600">Error Rate &le; 5% Threshold</text>
+    <text x="120" y="70" text-anchor="middle" fill="#94a3b8" font-size="11">Success Rate &ge; 95%</text>
+    <text x="120" y="88" text-anchor="middle" fill="#a855f7" font-size="11">Count: 3 Consecutive Passes</text>
+  </g>
+
+  <!-- BRANCH A: PASS -> Advance & Promote (Right/Up) -->
+  <path d="M 760 395 L 870 395" fill="none" stroke="#34d399" stroke-width="3" marker-end="url(#arrow-green)"/>
+  <text x="815" y="385" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">PASS (&le; 5%)</text>
+
+  <!-- Box: Promotion -->
+  <g transform="translate(880, 360)" filter="url(#shadow)">
+    <rect width="180" height="85" rx="8" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+    <rect width="180" height="6" rx="3" fill="#34d399"/>
+    <text x="90" y="28" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700" letter-spacing="0.05em">RELEASE PROMOTED</text>
+    <text x="90" y="48" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">100% Active Stable</text>
+    <text x="90" y="68" text-anchor="middle" fill="#34d399" font-size="11">Step 9/9 Reached</text>
+  </g>
+
+  <!-- BRANCH B: FAIL -> Circuit-Breaker Rollback (Downwards) -->
+  <path d="M 640 470 L 640 560" fill="none" stroke="#f87171" stroke-width="3" marker-end="url(#arrow-red)"/>
+  <text x="705" y="520" text-anchor="middle" fill="#f87171" font-size="12" font-weight="700">FAIL (> 5% Error)</text>
+
+  <!-- Box: Circuit-Breaker Rollback -->
+  <g transform="translate(520, 570)" filter="url(#shadow)">
+    <rect width="240" height="95" rx="8" fill="#1e293b" stroke="#f87171" stroke-width="2"/>
+    <rect width="240" height="6" rx="3" fill="#f87171"/>
+    <text x="120" y="28" text-anchor="middle" fill="#f87171" font-size="11" font-weight="700" letter-spacing="0.05em">CIRCUIT-BREAKER ROLLBACK</text>
+    <text x="120" y="48" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">Autonomous Abort</text>
+    <text x="120" y="66" text-anchor="middle" fill="#fbbf24" font-size="11">MTTR = 0.75s (12.4x Speedup)</text>
+    <text x="120" y="82" text-anchor="middle" fill="#34d399" font-size="11">65.5% Blast Radius Reduction</text>
+  </g>
+
+  <!-- ROW 4: Final Observability Dashboard -->
+  <!-- Connection from Promote to Dashboard -->
+  <path d="M 970 445 L 970 730 L 760 730" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Connection from Rollback to Dashboard -->
+  <path d="M 640 665 L 640 690" fill="none" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
+
+  <!-- Box: DevOps Dashboard -->
+  <g transform="translate(430, 700)" filter="url(#shadow)">
+    <rect width="320" height="70" rx="8" fill="#0b1120" stroke="#38bdf8" stroke-width="2"/>
+    <text x="160" y="28" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.05em">PHASE 6: OPERATOR OBSERVABILITY</text>
+    <text x="160" y="48" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="600">DevOps Dashboard (http://localhost:5005)</text>
+    <text x="160" y="63" text-anchor="middle" fill="#94a3b8" font-size="11">Real-time K8s Telemetry, Mesh Status &amp; Audit Log</text>
+  </g>
+
+</svg>

@@ -1,223 +1,300 @@
-# CLOUD-05: GitOps-Based Progressive Delivery with Automated Health Gating and Rollback
+# CLOUD-05: GitOps CI/CD with Progressive Delivery and Automated Rollback Using Real-Time Application Health Analysis
 
-**Final-Year CSE Capstone Project**  
-**Technology Stack:** Node.js, Express.js, Prometheus, Docker, Kubernetes, Argo CD, Argo Rollouts, HTML5/CSS/JavaScript  
-**Runtime Endpoint:** `http://localhost:5005`  
-**Telemetry Endpoint:** `http://localhost:5005/metrics`  
+[![Node.js CI](https://img.shields.io/badge/Node.js-20.x%20LTS-green.svg)](https://nodejs.org/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.28%2B-blue.svg)](https://kubernetes.io/)
+[![Argo CD](https://img.shields.io/badge/GitOps-Argo%20CD-orange.svg)](https://argo-cd.readthedocs.io/)
+[![Argo Rollouts](https://img.shields.io/badge/Progressive%20Delivery-Argo%20Rollouts-blueviolet.svg)](https://argoproj.github.io/rollouts/)
+[![Prometheus](https://img.shields.io/badge/Telemetry-Prometheus-red.svg)](https://prometheus.io/)
+[![Audit Status](https://img.shields.io/badge/Submission%20Audit-READY-brightgreen.svg)](evidence/final_review/FINAL_SUBMISSION_READINESS_REPORT.md)
+
+**Academic Capstone Project — Final Year Computer Science & Engineering**  
+**Repository:** [https://github.com/vinayak872/CAPSTONE-FINAL.git](https://github.com/vinayak872/CAPSTONE-FINAL.git)  
+**Target Cluster:** `docker-desktop` | **Namespace:** `cloud05-app`  
+**Active Endpoints:** Dashboard & Gateway: `http://localhost:5005` | Order Microservice: `http://localhost:5006`
 
 ---
 
-## 1. Project Overview & Architecture
+## 1. Abstract & Executive Overview
 
-Traditional Continuous Integration and Continuous Delivery (CI/CD) pipelines frequently deploy software candidates directly into production. When a release contains subtle, semantic, or latent defects, conventional deployment patterns expose 100% of users to disruption before problems are detected.
+Traditional Continuous Integration and Continuous Delivery (CI/CD) pipelines frequently deploy software candidates directly into production after passing synthetic tests. When subtle or semantic defects escape unit testing, conventional deployment patterns (such as standard rolling updates or recreate strategies) expose 100% of production traffic to disruption before human operators can detect and mitigate the incident.
 
-**CLOUD-05** implements an end-to-end cloud-native GitOps architecture that eliminates this vulnerability using:
-1. **Git as Single Source of Truth:** Desired infrastructure and application versions are managed declaratively in Git.
-2. **GitOps Reconciliation:** Argo CD synchronizes desired states directly into Kubernetes.
-3. **Progressive Delivery (Canary Deployments):** Argo Rollouts gradually increases candidate traffic exposure (10% &rarr; 25% &rarr; 50% &rarr; 100%).
-4. **Automated Health Analysis:** Real-time Prometheus metrics (`cloud05_http_requests_total`, error rates, latencies) continuously evaluate candidate health.
-5. **Circuit-Breaker Automatic Rollback:** If metrics breach predefined safety thresholds, the rollout aborts immediately and restores 100% traffic to the previously healthy release.
+**CLOUD-05** implements an enterprise-grade cloud-native GitOps architecture that eliminates this vulnerability by decoupling deployment from release. Using **Argo CD** for declarative Git reconciliation, **Argo Rollouts** for granular canary traffic gating, and **Prometheus** for real-time health analysis, the system continuously evaluates error rates and latencies against safety thresholds ($\le 5\%$). If a candidate breaches safety criteria, an automated circuit breaker immediately halts progression and restores 100% traffic to the stable release.
 
-### Architecture Diagram
+In controlled empirical benchmark trials ($n = 3$), CLOUD-05 demonstrated a **65.5% reduction in cumulative user blast radius** and an automated Mean Time to Recover (MTTR) of **0.75 seconds**, achieving a **12.4x recovery speedup** over manual operator triage (9.30 seconds).
+
+---
+
+## 2. Key Features
+
+- **Declarative GitOps Reconciliation:** Git is the single source of truth; Argo CD reconciles desired state directly into Kubernetes.
+- **Progressive Canary Delivery:** Granular traffic shifting ($10\% \rightarrow 25\% \rightarrow 50\% \rightarrow 100\%$) via Argo Rollouts.
+- **Automated Real-Time Telemetry Gating:** PromQL analysis evaluates candidate health at each step before allowing traffic expansion.
+- **Sub-Second Circuit Breaker:** Autonomous rollback without human intervention when metric thresholds are breached.
+- **Decoupled Microservice Topology:** Progressive Delivery Gateway (`:5005`) and independent Order Microservice (`:5006`).
+- **Real-Time DevOps Dashboard:** Live Kubernetes cluster telemetry, replica classification, Argo CD sync status, and 7-stage pipeline visualizer.
+- **Dual Execution Engine:** Supports live Kubernetes cluster synchronization and lightweight in-memory demonstration simulation.
+- **Zero-Dependency Security:** Non-root multi-stage Dockerfiles, rate-limiting middleware, token authentication, and hardened probe thresholds.
+
+---
+
+## 3. Technology Stack
+
+| Layer | Technologies |
+| :--- | :--- |
+| **Runtime & Backend** | Node.js 20 LTS, Express.js, `prom-client` |
+| **Frontend Dashboard** | HTML5, CSS3 (Modern Glassmorphic UI), Vanilla JavaScript (Zero 3P CDN dependencies) |
+| **Microservices** | Independent Order Service (`services/order-service`), Gateway Proxy |
+| **Containerization** | Docker (Multi-stage non-root Alpine builds) |
+| **Orchestration** | Kubernetes v1.28+ (`cloud05-app`, `argocd`, `monitoring` namespaces) |
+| **GitOps & Delivery** | Argo CD v2.10+, Argo Rollouts v1.6+, Kustomize |
+| **Telemetry & Metrics** | Prometheus Server, Argo Rollouts `AnalysisTemplates`, Grafana |
+| **Testing & CI/CD** | Vitest (35 tests), Node Test Runner (3 tests), E2E Suite (12 stages), ESLint, GitHub Actions |
+
+---
+
+## 4. Architecture Overview
 
 ```mermaid
 graph TD
-    Dev[Developer Code Change] --> Git[Git Repository / Desired State]
-    Git --> CI[CI Pipeline: Lint, Test, Security Audit]
-    CI --> Docker[Multi-Stage Docker Image]
-    Docker --> Registry[Container Registry]
-    Registry --> GitOps[GitOps Manifest Update]
-    GitOps --> ArgoCD[Argo CD Controller]
-    ArgoCD --> K8s[Kubernetes Cluster]
-    K8s --> Rollout[Argo Rollouts Controller]
-    
-    Rollout -->|10% Traffic| Canary[Canary Candidate Pods]
-    Rollout -->|90% Traffic| Stable[Active Stable Pods]
-    
-    Canary --> Prom[Prometheus Telemetry Scraper]
-    Prom --> Analysis[AnalysisTemplate Health Analysis]
-    
-    Analysis -->|Pass: Error Rate <= 5%| Promote[Promote Candidate to Active]
-    Analysis -->|Fail: Error Rate > 5%| Rollback[Circuit Breaker: Automatic Rollback to Stable]
-    
-    Promote --> Dashboard[DevOps Monitoring Dashboard]
-    Rollback --> Dashboard
+    subgraph GitOps Source of Truth
+        Git[GitHub Repository: main branch]
+    end
+
+    subgraph Continuous Integration
+        Git --> CI[GitHub Actions CI: Lint, Vitest, E2E, Docker Build]
+    end
+
+    subgraph Kubernetes Cluster
+        ArgoCD[Argo CD Controller: argocd]
+        Git -.->|Reconcile Desired State| ArgoCD
+
+        subgraph Application: cloud05-app
+            Rollout[Argo Rollout: cloud05-service]
+            StablePods[Stable Pods: v1.0.1 - 4/4 Ready]
+            CanaryPods[Canary Pods: candidate - 0 active]
+            OrderPods[Order Service Pods: 3/3 Ready]
+
+            Rollout --> StablePods
+            Rollout -.-> CanaryPods
+        end
+
+        subgraph Observability: monitoring
+            Prometheus[Prometheus Server: port 9090]
+            Analysis[AnalysisRun Controller]
+
+            Prometheus -->|Scrape Metrics| StablePods
+            Prometheus -->|Scrape Metrics| CanaryPods
+            Analysis -->|Query Error & Success Rates| Prometheus
+            Analysis -->|Pass / Abort Signal| Rollout
+        end
+    end
+
+    subgraph User & Operator Interface
+        Dashboard[Monitoring Dashboard: http://localhost:5005]
+        StablePods --> Dashboard
+    end
 ```
+
+For complete technical specifications, see [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md).
 
 ---
 
-## 2. Directory Structure
+## 5. Installation & Local Execution
 
-```
-cloud05-capstone/
-├── backend/
-│   ├── src/
-│   │   ├── app.js                   # Express application setup, routes & middleware
-│   │   ├── server.js                # Server entrypoint listening on port 5005
-│   │   ├── config/
-│   │   │   └── environment.js       # Centralized typed configuration & paths
-│   │   ├── middleware/
-│   │   │   ├── error-handler.js     # Graceful error handler (no secret leakage)
-│   │   │   └── metrics.middleware.js # Prometheus HTTP duration & counter collector
-│   │   ├── routes/
-│   │   │   ├── health.routes.js     # /health, /ready, /version
-│   │   │   ├── status.routes.js     # /api/status telemetry state
-│   │   │   ├── config.routes.js     # /api/config disk file state
-│   │   │   ├── events.routes.js     # /api/events chronological audit stream
-│   │   │   ├── deployment.routes.js # /api/deploy/* triggers & reset
-│   │   │   ├── metrics.routes.js    # /metrics Prometheus endpoint
-│   │   │   └── demo.routes.js       # /api/demo/* realistic business operations
-│   │   ├── services/
-│   │   │   ├── state.service.js     # Thread-safe in-memory progressive state machine
-│   │   │   ├── rollout.service.js   # Canary lifecycle & circuit-breaker rollback engine
-│   │   │   ├── config.service.js    # Strict JSON schema validator for release_config.json
-│   │   │   ├── event.service.js     # Chronological audit stream ring buffer
-│   │   │   ├── metrics.service.js   # prom-client Prometheus metrics definitions
-│   │   │   └── k8s.service.js       # Cluster & Argo Rollouts connectivity detector
-│   │   └── utils/
-│   │       └── logger.js            # Structured JSON logger
-│   ├── tests/
-│   │   ├── health.test.js           # Tests for /health, /ready, /version, /metrics
-│   │   ├── config.test.js           # Tests for schema validation & active preservation
-│   │   ├── rollout.test.js          # Tests for promotion, rollback & boundary cases
-│   │   └── demo.test.js             # Tests for demo business operations
-│   ├── Dockerfile                   # Multi-stage non-root container configuration
-│   ├── release_config.json          # Live evaluated release configuration file
-│   └── package.json                 # Node.js backend dependencies & scripts
-├── frontend/
-│   ├── index.html                   # Cloud-native DevOps monitoring dashboard
-│   ├── css/
-│   │   └── style.css                # Dark theme, badges, traffic bars, pipeline tracker
-│   └── js/
-│       └── app.js                   # Reactive polling engine (1s interval) & event rendering
-├── k8s/
-│   ├── namespace.yaml               # cloud05-app namespace
-│   ├── configmap.yaml               # Application environment configuration
-│   ├── secrets.yaml                 # Sensitive secret references
-│   ├── services.yaml                # Active and Preview Kubernetes services
-│   ├── analysis-template.yaml       # Argo Rollouts Prometheus health analysis queries
-│   ├── rollout.yaml                 # Argo Rollouts progressive canary CRD
-│   ├── argocd-application.yaml      # Argo CD GitOps Application manifest
-│   └── kustomization.yaml           # Kustomize manifest bundle
-├── monitoring/
-│   ├── prometheus.yml               # Prometheus scraper configuration
-│   └── grafana-dashboard.json       # Grafana telemetry dashboard definition
-├── experiments/
-│   └── run_experiments.js          # Controlled academic benchmark runner
-├── evidence/
-│   ├── phase1/                      # Baseline audit reports
-│   └── final_review/                # Research paper, raw data & verification matrix
-├── .github/workflows/
-│   └── ci-cd.yml                    # Automated GitHub Actions pipeline
-├── test_e2e.js                      # Root one-command JavaScript E2E test suite
-├── package.json                     # Root project package definition
-└── README.md                        # Documentation
-```
+### 5.1 Local Development Setup
 
----
-
-## 3. How to Run Locally
-
-### Prerequisites
-- Node.js (v18.0.0 or higher)
-- npm (v9.0.0 or higher)
-- A modern web browser
-
-### Start the Application
-From the project root:
 ```bash
-# 1. Install dependencies
-npm --prefix backend install
+# 1. Clone repository
+git clone https://github.com/vinayak872/CAPSTONE-FINAL.git
+cd CAPSTONE-FINAL
 
-# 2. Start Node.js backend
+# 2. Install dependencies
+npm install
+npm --prefix backend install
+npm --prefix services/order-service install
+
+# 3. Start Gateway application locally on port 5005
 npm start
 ```
-The server starts at: **`http://localhost:5005`**  
-Open your browser to view the interactive DevOps dashboard!
+
+### 5.2 Running the Order Microservice
+```bash
+# In a separate terminal
+cd services/order-service
+npm start
+```
 
 ---
 
-## 4. Running Automated Tests
+## 6. Kubernetes & GitOps Deployment Instructions
 
-### Unit & Integration Test Suite (Vitest & Supertest)
+### 6.1 Apply Kubernetes Infrastructure
 ```bash
+# 1. Validate manifests offline with Kustomize
+kubectl kustomize k8s/
+
+# 2. Apply all application manifests
+kubectl apply -k k8s/
+
+# 3. Deploy Prometheus monitoring stack
+kubectl apply -f monitoring/prometheus-k8s.yaml
+
+# 4. Register Argo CD GitOps Application
+kubectl apply -f k8s/argocd-application.yaml
+```
+
+### 6.2 Port Forwarding for Local Access
+```bash
+# Gateway UI & REST API (port 5005)
+kubectl port-forward svc/cloud05-active-service -n cloud05-app 5005:5005 &
+
+# Order Microservice (port 5006)
+kubectl port-forward svc/order-active-service -n cloud05-app 5006:5006 &
+
+# Prometheus Server (port 9090)
+kubectl port-forward svc/prometheus-server -n monitoring 9090:9090 &
+```
+
+For complete deployment details, see [**docs/DEPLOYMENT_GUIDE.md**](docs/DEPLOYMENT_GUIDE.md).
+
+---
+
+## 7. Dashboard Access & Verification
+
+Open your browser to:
+```
+http://localhost:5005
+```
+
+The live dashboard displays:
+- **Engine Mode:** `Kubernetes Connected` (green status badge).
+- **Service Mesh Health:** Gateway (4/4 Ready, 4 Stable, 0 Canary) and Order Service (3/3 Ready).
+- **GitOps Status:** Argo CD `Synced` & `Healthy` at commit `0d4fd70`.
+- **Prometheus Telemetry:** Live `AnalysisRun` status and consecutive metric passes.
+- **7-Stage Lifecycle:** Visual deployment pipeline tracking promotion states.
+- **Simulation Benchmark Evidence:** Controlled research data dynamically retrieved from `GET /api/research`.
+
+---
+
+## 8. Automated Testing Strategy
+
+CLOUD-05 features a 4-tier automated test pyramid:
+
+```bash
+# 1. Static Code Analysis (ESLint) - 0 errors, 0 warnings
+npm run lint
+
+# 2. Backend Unit & Integration Tests (Vitest) - 35/35 passing
 npm test
-```
-*Executes all 24 automated unit and integration tests across health, configuration validation, canary promotion, circuit breaker rollback, and business operations.*
 
-### One-Command End-to-End Test Suite (Live Server)
-```bash
-node test_e2e.js
+# 3. Order Microservice Tests (Node Test Runner) - 3/3 passing
+(cd services/order-service && npm test)
+
+# 4. 12-Stage End-to-End System Suite
+npm run test:e2e
 ```
-*Validates all 12 end-to-end scenarios against a running server with color-coded PASS/FAIL reporting.*
+
+For full test scenarios and coverage details, see [**docs/TESTING_AND_VERIFICATION.md**](docs/TESTING_AND_VERIFICATION.md).
 
 ---
 
-## 5. Live Demonstration Guide for Reviewers
+## 9. Comprehensive Documentation & Research Evidence
 
-### Scenario 1: Healthy Release Promotion Demonstration
-1. Open `backend/release_config.json` and set:
-   ```json
-   {
-     "version": "v4.0",
-     "message": "Healthy release test",
-     "error_rate": 0,
-     "threshold": 5
-   }
-   ```
-2. Open the dashboard at `http://localhost:5005`.
-3. Notice the card displays `Projected Outcome: PASS (Promote)`.
-4. Click **Deploy Current Configuration** (or **Deploy Healthy Release**).
-5. Watch the progressive lifecycle:
-   - Pipeline visualizer lights up Step 5 (`10% Canary`).
-   - Ramps to Step 6 (`50% Canary`) while Prometheus probes evaluate health (`0% <= 5%`).
-   - Candidate `v4.0` is promoted to **Active Release**.
-   - Traffic returns to 100% active; previous stable `v1.0` is preserved for rollbacks.
+### Documentation Suite (`docs/`)
+- [**Documentation Index**](docs/README.md)
+- [**System Architecture**](docs/ARCHITECTURE.md)
+- [**Deployment Guide**](docs/DEPLOYMENT_GUIDE.md)
+- [**Monitoring & Rollback**](docs/MONITORING_AND_ROLLBACK.md)
+- [**Testing & Verification**](docs/TESTING_AND_VERIFICATION.md)
+- [**Research Methodology**](docs/RESEARCH_METHODOLOGY.md)
+- [**Viva & Defense Guide**](docs/VIVA_DEFENSE_GUIDE.md)
 
-### Scenario 2: Faulty Release & Automatic Rollback Demonstration
-1. Open `backend/release_config.json` and set:
-   ```json
-   {
-     "version": "v5.0",
-     "message": "Faulty release test",
-     "error_rate": 18,
-     "threshold": 5
-   }
-   ```
-2. On the dashboard, notice `Projected Outcome: FAIL (Rollback)`.
-3. Click **Deploy Current Configuration** (or **Deploy Faulty Release**).
-4. Watch the automatic rollback lifecycle:
-   - Canary initiates at 10%, ramping to 50%.
-   - Health analysis detects violation: error rate (18%) exceeds threshold (5%).
-   - Circuit breaker trips: `/health` returns **HTTP 503**, dashboard turns RED.
-   - **Automated Rollback triggers immediately**: candidate `v5.0` is discarded.
-   - Previous stable release (`v4.0`) is restored to 100% active traffic.
-   - Red **Automated Rollback Event Detected** alert card appears with timestamp and failure reason.
-   - Application health returns to **HEALTHY** (HTTP 200).
-
-### Scenario 3: Invalid Configuration Rejection
-1. Set `error_rate: -10` or remove the `version` field in `backend/release_config.json`.
-2. Notice the badge shows `Invalid Config`.
-3. Click **Deploy Current Configuration**.
-4. The deployment is rejected with **HTTP 400**. The active version remains 100% untouched.
+### Authoritative Final Evidence (`evidence/final_review/`)
+- [**Final Submission Readiness Report**](evidence/final_review/FINAL_SUBMISSION_READINESS_REPORT.md) — Comprehensive readiness audit confirming `READY` classification.
+- [**Final Live Dashboard Verification**](evidence/final_review/FINAL_LIVE_DASHBOARD_VERIFICATION.md) — Authoritative live cluster telemetry verification.
+- [**Final Repository Cleanup Report**](evidence/final_review/FINAL_REPOSITORY_CLEANUP_REPORT.md) — Repository inventory and security audit.
+- [**Final Research Paper**](evidence/final_review/research_paper.md) — Complete academic paper formatted for review.
+- [**Experiment Raw Data**](evidence/final_review/experiment_raw_data.json) — Source of truth trial metrics supporting all research findings.
 
 ---
 
-## 6. API Reference
+## 10. Repository Structure
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/` | DevOps Monitoring Dashboard UI |
-| `GET` | `/health` | Application liveness probe (200 = HEALTHY, 503 = UNHEALTHY) |
-| `GET` | `/ready` | Application readiness probe (200 = READY, 503 = NOT_READY) |
-| `GET` | `/version` | Service identifier, active version, candidate version, environment |
-| `GET` | `/metrics` | Prometheus telemetry metrics (`prom-client`) |
-| `GET` | `/api/status` | Real-time JSON telemetry (active, candidate, split, rollback metadata) |
-| `GET` | `/api/config` | Current `release_config.json` state & validation status |
-| `GET` | `/api/events` | Chronological audit log of pipeline events |
-| `GET` | `/api/demo/products` | Sample business microservice catalog operation |
-| `POST` | `/api/demo/orders` | Sample business transaction processing operation |
-| `POST` | `/api/deploy/healthy` | Trigger preset healthy candidate rollout (`v2.0` &rarr; Promoted) |
-| `POST` | `/api/deploy/faulty` | Trigger preset faulty candidate rollout (`v3.0` &rarr; Auto-Rollback) |
-| `POST` | `/api/deploy/current-config`| Live disk file deployment with validation & health gating |
-| `POST` | `/api/reset` | Operator state reset to initial `v1.0` baseline |
+```
+.
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml                # 3-Stage GitHub Actions CI/CD Pipeline
+├── backend/
+│   ├── Dockerfile                   # Multi-stage non-root Alpine Dockerfile
+│   ├── package.json                 # Backend dependencies & test scripts
+│   ├── release_config.json          # Deployment configuration
+│   ├── requirements.txt             # Python dependency manifest (preserved)
+│   ├── src/                         # Express Gateway source code
+│   │   ├── app.js                   # Middleware & route binding
+│   │   ├── server.js                # Process entry point
+│   │   ├── config/                  # Environment & schema validation
+│   │   ├── middleware/              # Security, metrics, and error handling
+│   │   ├── routes/                  # REST API routes (status, demo, research)
+│   │   ├── services/                # K8s, metrics, state, event services
+│   │   └── utils/                   # Structured logger
+│   └── tests/                       # 35 Vitest unit & integration tests
+├── docs/                            # Comprehensive documentation suite
+│   ├── README.md                    # Documentation roadmap
+│   ├── ARCHITECTURE.md              # Architectural specification
+│   ├── DEPLOYMENT_GUIDE.md          # Docker, K8s & GitOps deployment guide
+│   ├── MONITORING_AND_ROLLBACK.md   # Prometheus metrics & rollback workflow
+│   ├── RESEARCH_METHODOLOGY.md      # Benchmark design & equations
+│   ├── TESTING_AND_VERIFICATION.md  # Test pyramid & execution instructions
+│   └── VIVA_DEFENSE_GUIDE.md        # Academic viva preparation Q&A
+├── evidence/
+│   └── final_review/                # Authoritative research evidence & audit reports
+│       ├── FINAL_LIVE_DASHBOARD_VERIFICATION.md
+│       ├── FINAL_REPOSITORY_CLEANUP_REPORT.md
+│       ├── FINAL_SUBMISSION_READINESS_REPORT.md
+│       ├── experiment_raw_data.json
+│       └── research_paper.md
+├── experiments/                     # Reproducible benchmark runner scripts
+│   ├── run_experiments.js           # Simulation benchmark suite
+│   └── run_k8s_benchmark.js         # Kubernetes cluster benchmark runner
+├── frontend/                        # Interactive DevOps dashboard
+│   ├── index.html                   # Dashboard UI layout
+│   ├── css/style.css                # Custom glassmorphic styling
+│   └── js/app.js                    # Telemetry poller & event renderer
+├── k8s/                             # Kubernetes & Argo Rollouts manifests
+│   ├── analysis-template.yaml       # Prometheus PromQL analysis rules
+│   ├── argocd-application.yaml      # Argo CD GitOps Application manifest
+│   ├── configmap.yaml               # Cluster environment variables
+│   ├── kustomization.yaml           # Kustomize deployment bundle
+│   ├── namespace.yaml               # cloud05-app namespace definition
+│   ├── order-service-rollout.yaml   # Order service Rollout (canary strategy)
+│   ├── order-service-services.yaml  # Order service ClusterIP definitions
+│   ├── rbac.yaml                    # ServiceAccount & ClusterRole permissions
+│   ├── rollout.yaml                 # Gateway Rollout (9-step canary strategy)
+│   ├── secrets.example.yaml         # Sanitized secret template
+│   ├── services.yaml                # Gateway active & preview services
+│   └── experiments/                 # RollingUpdate comparison manifest
+├── monitoring/                      # Observability configurations
+│   ├── grafana-dashboard.json       # Preconfigured Grafana dashboard
+│   ├── prometheus-k8s.yaml          # In-cluster Prometheus deployment
+│   └── prometheus.yml               # Scrape configuration
+├── services/
+│   └── order-service/               # Independent Order Microservice
+│       ├── Dockerfile               # Multi-stage Dockerfile
+│       ├── package.json             # Microservice package definition
+│       ├── src/server.js            # Microservice logic (:5006)
+│       └── tests/server.test.js     # Microservice unit tests
+├── .dockerignore                    # Docker build exclusion rules
+├── .gitignore                       # Version control ignore rules
+├── eslint.config.mjs                # ESLint configuration
+├── package.json                     # Root npm script runner
+└── test_e2e.js                      # 12-stage live HTTP End-to-End suite
+```
+
+---
+
+## 11. Academic Evaluation & License
+
+- **Course / Degree:** Final-Year Computer Science and Engineering Capstone Project
+- **Project Classification:** Cloud Computing, Site Reliability Engineering (SRE), GitOps & Progressive Delivery
+- **License:** ISC License
