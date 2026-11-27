@@ -547,7 +547,9 @@ class K8sService {
         reason: rollout.abort_reason || `AnalysisRun failed: Metric threshold breached in candidate ${imageVersion}`
       };
     } else if (rollout.phase === 'Healthy') {
-      stateService.deploymentStatus = 'STABLE';
+      if (stateService.deploymentStatus !== 'ROLLED BACK') {
+        stateService.deploymentStatus = 'STABLE';
+      }
       stateService.previousStableVersion = imageVersion;
       stateService.activeVersion = imageVersion;
       stateService.candidateVersion = 'NONE';
